@@ -62,12 +62,14 @@ class PriceCollector:
         providers: list[FlightProvider],
         on_provider_success: Callable[[str], None] | None = None,
         on_provider_failure: Callable[[str, BaseException], None] | None = None,
+        on_item_started: Callable[[str, str, date], None] | None = None,
         on_item_progress: Callable[[str, str, str, date], None] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.providers = providers
         self.on_provider_success = on_provider_success
         self.on_provider_failure = on_provider_failure
+        self.on_item_started = on_item_started
         self.on_item_progress = on_item_progress
 
         self._route_failures: dict[str, int] = {}
@@ -323,6 +325,9 @@ class PriceCollector:
 
         async def run_one(dest: str, depart_date: date):
             route_key = self._route_key(origin, dest)
+
+            if self.on_item_started:
+                self.on_item_started(origin, dest, depart_date)
 
             if self._is_route_cooled(route_key):
                 if self.on_item_progress:

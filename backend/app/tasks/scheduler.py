@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from datetime import date, timedelta
 from uuid import UUID
 
@@ -53,6 +54,7 @@ class FlightScheduler:
             "routes_done": 0,
             "routes_failed": 0,
             "prices_total": 0,
+            "prices_started": 0,
             "prices_done": 0,
             "prices_failed": 0,
             "dates_scraped": 0,
@@ -83,6 +85,7 @@ class FlightScheduler:
             "routes_done": 0,
             "routes_failed": 0,
             "prices_total": 0,
+            "prices_started": 0,
             "prices_done": 0,
             "prices_failed": 0,
             "dates_scraped": 0,
@@ -90,6 +93,17 @@ class FlightScheduler:
             "current_destination": "",
             "current_date": "",
         }
+
+    def _record_item_started(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+    ) -> None:
+        self._progress["current_origin"] = origin
+        self._progress["current_destination"] = destination
+        self._progress["current_date"] = depart_date.isoformat()
+        self._progress["prices_started"] += 1
 
     def _record_item_progress(
         self,
@@ -177,7 +191,10 @@ class FlightScheduler:
                     return
 
                 try:
-                    run = CollectionRun(status="running")
+                    run = CollectionRun(
+                        status="running",
+                        started_at=datetime.now(UTC),
+                    )
                     session.add(run)
                     await session.flush()
 
@@ -254,6 +271,11 @@ class FlightScheduler:
                         providers=providers,
                         on_provider_success=self.provider_registry.report_success,
                         on_provider_failure=self.provider_registry.report_failure,
+                        on_item_started=lambda origin, destination, depart_date: self._record_item_started(
+                            origin,
+                            destination,
+                            depart_date,
+                        ),
                         on_item_progress=lambda status, origin, destination, depart_date: self._record_item_progress(
                             status,
                             origin,
@@ -311,7 +333,7 @@ class FlightScheduler:
                     run.routes_success = total_success
                     run.routes_failed = total_errors
                     run.dates_scraped = total_success
-                    run.finished_at = func.now()
+                    run.finished_at = datetime.now(UTC)
                     await session.commit()
 
                 finally:
@@ -523,6 +545,11 @@ class FlightScheduler:
                         providers=providers,
                         on_provider_success=self.provider_registry.report_success,
                         on_provider_failure=self.provider_registry.report_failure,
+                        on_item_started=lambda origin, destination, depart_date: self._record_item_started(
+                            origin,
+                            destination,
+                            depart_date,
+                        ),
                         on_item_progress=lambda status, origin, destination, depart_date: self._record_item_progress(
                             status,
                             origin,

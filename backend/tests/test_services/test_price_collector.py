@@ -10,8 +10,6 @@ from app.providers.base import ProviderResult
 from app.services.price_collector import CollectionResult, PriceCollector
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
 def make_result(price: float, airline: str = "AC", provider: str = "serpapi") -> ProviderResult:
     return ProviderResult(
         price=price,
@@ -23,14 +21,13 @@ def make_result(price: float, airline: str = "AC", provider: str = "serpapi") ->
 
 
 def make_provider(name: str, results: list[ProviderResult]) -> MagicMock:
-    p = MagicMock()
-    p.name = name
-    p.search_one_way = AsyncMock(return_value=results)
-    return p
+    provider = MagicMock()
+    provider.name = name
+    provider.search_one_way = AsyncMock(return_value=results)
+    return provider
 
 
 def make_session_factory(session: AsyncMock) -> MagicMock:
-    """Return a mock async_sessionmaker that yields the given session."""
     factory = MagicMock()
     factory.return_value.__aenter__ = AsyncMock(return_value=session)
     factory.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -41,8 +38,6 @@ ROUTE_ID = uuid.uuid4()
 TODAY = date.today()
 DEPART = TODAY + timedelta(days=30)
 
-
-# ── unit tests (mock session + providers) ────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_collect_single_date_returns_cheapest() -> None:
@@ -55,8 +50,6 @@ async def test_collect_single_date_returns_cheapest() -> None:
         session_factory=make_session_factory(session),
         providers=[provider],
     )
-
-    # Patch _upsert_cheapest so we don't need a real DB
     collector._upsert_cheapest = AsyncMock()
 
     result = await collector.collect_single_date("YYZ", "NRT", DEPART, ROUTE_ID)
@@ -111,12 +104,9 @@ async def test_collect_single_date_one_provider_fails() -> None:
 
     result = await collector.collect_single_date("YYZ", "NRT", DEPART, ROUTE_ID)
 
-    # Good provider's result still saved
     assert result.cheapest is not None
     assert result.cheapest.price == 1500
-    # Error recorded
     assert "serpapi_b" in result.errors
-    # Both a success log and an error log were added
     assert session.add.call_count == 2
 
 
@@ -196,7 +186,41 @@ async def test_collect_route_batch_stats() -> None:
     assert stats["errors"] == 0
 
 
-# ── upsert logic test (verifies SQL param assembly) ──────────────────────────
+@pytest.mark.asyncio
+async def test_collect_route_batch_reports_started_before_result() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    provider = make_provider("serpapi", [make_result(1500)])
+    started_calls: list[tuple[str, str, date]] = []
+    progress_calls: list[tuple[str, str, str, date]] = []
+    collector = PriceCollector(
+        session_factory=make_session_factory(session),
+        providers=[provider],
+        on_item_started=lambda origin, destination, depart_date: started_calls.append(
+            (origin, destination, depart_date)
+        ),
+        on_item_progress=lambda status, origin, destination, depart_date: progress_calls.append(
+            (status, origin, destination, depart_date)
+        ),
+    )
+    collector._upsert_cheapest = AsyncMock()
+    collector._save_all_results = AsyncMock()
+
+    stats = await collector.collect_route_batch(
+        origin="YYZ",
+        destinations=["NRT"],
+        dates=[DEPART],
+        route_group_id=ROUTE_ID,
+        batch_size=1,
+        delay_seconds=0,
+    )
+
+    assert stats == {"success": 1, "errors": 0, "skipped": 0}
+    assert started_calls == [("YYZ", "NRT", DEPART)]
+    assert progress_calls == [("success", "YYZ", "NRT", DEPART)]
+
 
 @pytest.mark.asyncio
 async def test_collect_route_batch_cooled_route_reports_skipped_progress() -> None:
@@ -258,16 +282,12 @@ async def test_upsert_cheapest_sends_correct_params() -> None:
     assert params["destination"] == "NRT"
     assert params["price"] == 1250
     assert params["provider"] == "serpapi"
-    # Bare IATA code is expanded to the human-readable name on persistence.
     assert params["airline"] == "Air Canada"
     assert "WHERE daily_cheapest_prices.price > EXCLUDED.price" not in str(call_args[0])
 
 
 @pytest.mark.asyncio
 async def test_round_trip_calls_search_round_trip_with_return_date() -> None:
-    """Regression: a route group with trip_type='round_trip' must trigger the
-    provider's round-trip search using depart + nights, not silently fall
-    through to one_way."""
     session = AsyncMock()
     session.add = MagicMock()
     session.commit = AsyncMock()

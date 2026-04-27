@@ -184,29 +184,31 @@ export function PriceTable({
                   i % 2 !== 0 ? "bg-slate-50/50" : ""
                 }`}
               >
-                <td className="px-6 py-3 text-slate-700">{price.depart_date}</td>
-                <td className="px-6 py-3 font-medium text-slate-800">
+                <td className="whitespace-nowrap px-6 py-3 text-slate-700">{price.depart_date}</td>
+                <td className="whitespace-nowrap px-6 py-3 font-medium text-slate-800">
                   <span className="rounded-md bg-indigo-50 px-2 py-1 font-mono text-xs font-semibold text-brand-700">
                     {price.origin}
                   </span>
                 </td>
-                <td className="px-6 py-3 text-slate-700">
+                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
                   <span className="rounded-md bg-emerald-50 px-2 py-1 font-mono text-xs font-semibold text-emerald-700">
                     {price.destination}
                   </span>
                 </td>
                 {isMultiCity ? (
-                  <td className="px-6 py-3 text-slate-700">
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">
                     <span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-semibold text-amber-700">
                       {returnOrigin || "-"}
                     </span>
                   </td>
                 ) : null}
                 {isMultiCity ? (
-                  <td className="px-6 py-3 text-slate-700">{addDays(price.depart_date, nights)}</td>
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">
+                    {addDays(price.depart_date, nights)}
+                  </td>
                 ) : null}
-                <td className="px-6 py-3 text-slate-700">{price.airline}</td>
-                <td className="px-6 py-3 text-slate-700">
+                <td className="min-w-[16rem] px-6 py-3 text-slate-700">{price.airline}</td>
+                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
                   {price.stops == null ? (
                     "-"
                   ) : price.stops === 0 ? (
@@ -215,19 +217,19 @@ export function PriceTable({
                     `${price.stops} stop${price.stops > 1 ? "s" : ""}`
                   )}
                 </td>
-                <td className="px-6 py-3 text-slate-700">
+                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
                   {price.duration_minutes == null
                     ? "-"
                     : `${Math.floor(price.duration_minutes / 60)}h ${price.duration_minutes % 60}m`}
                 </td>
-                <td className="px-6 py-3 text-right font-medium text-slate-900">
+                <td className="whitespace-nowrap px-6 py-3 text-right font-medium text-slate-900">
                   {Math.round(price.price).toLocaleString()}{" "}
                   <span className="text-xs text-slate-400">
                     {groupCurrency ?? price.currency}
                   </span>
                 </td>
-                <td className="px-6 py-3 capitalize text-slate-500">{price.provider}</td>
-                <td className="px-6 py-3 text-slate-400">
+                <td className="whitespace-nowrap px-6 py-3 capitalize text-slate-500">{price.provider}</td>
+                <td className="whitespace-nowrap px-6 py-3 text-slate-400">
                   {formatRelativeTime(price.scraped_at)}
                 </td>
               </tr>

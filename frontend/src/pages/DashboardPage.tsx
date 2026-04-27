@@ -59,6 +59,7 @@ export function DashboardPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [startProbeUntil, setStartProbeUntil] = useState<number | null>(null);
 
   const wasCollecting = useRef(false);
 
@@ -82,7 +83,10 @@ export function DashboardPage() {
   const statusQuery = useQuery({
     queryKey: ["collection-status"],
     queryFn: getCollectionStatus,
-    refetchInterval: (query) => (query.state.data?.is_collecting ? 1_500 : 15_000),
+    refetchInterval: (query) =>
+      query.state.data?.is_collecting || (startProbeUntil != null && Date.now() < startProbeUntil)
+        ? 1_500
+        : 15_000,
   });
 
   const stopMut = useMutation({
@@ -137,6 +141,24 @@ export function DashboardPage() {
   }, [isCollecting, qc, showToast]);
 
   useEffect(() => {
+    if (isCollecting && startProbeUntil != null) {
+      setStartProbeUntil(null);
+      return;
+    }
+
+    if (startProbeUntil == null) return;
+
+    const remaining = startProbeUntil - Date.now();
+    if (remaining <= 0) {
+      setStartProbeUntil(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setStartProbeUntil(null), remaining);
+    return () => window.clearTimeout(timer);
+  }, [isCollecting, startProbeUntil]);
+
+  useEffect(() => {
     if (!isCollecting) return;
 
     qc.invalidateQueries({ queryKey: ["stats"] });
@@ -181,6 +203,7 @@ export function DashboardPage() {
         showToast("Collection is already running", "info");
       } else {
         showToast("Collection triggered successfully", "success");
+        setStartProbeUntil(Date.now() + 30_000);
         qc.invalidateQueries({ queryKey: ["collection-status"] });
       }
     } catch (err) {

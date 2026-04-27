@@ -6,6 +6,7 @@ export interface CollectionProgress {
   routes_done: number;
   routes_failed: number;
   prices_total: number;
+  prices_started: number;
   prices_done: number;
   prices_failed: number;
   dates_scraped: number;
