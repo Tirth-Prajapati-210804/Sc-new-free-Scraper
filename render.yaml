@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: flight-harvester-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    rootDir: .
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health/ready
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: DEBUG
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
+      - key: ENVIRONMENT
+        value: "production"
+      - key: EXPOSE_API_DOCS
+        value: "false"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: "*.onrender.com"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SEARCHAPI_KEY
+        sync: false
+
+  - type: static
+    name: flight-harvester-frontend
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    publishPath: dist
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
