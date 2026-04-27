@@ -71,7 +71,7 @@ The frontend expects `VITE_API_BASE_URL` to point at the backend in local develo
 
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` - bootstrap admin account.
 
-`SEARCHAPI_KEY` - enables the real provider. Leave empty only for demo mode.
+`SEARCHAPI_KEY` / `SEARCHAPI_KEYS` - enables the real provider. Use one key in `SEARCHAPI_KEY` or a comma-separated / JSON array pool in `SEARCHAPI_KEYS`.
 
 `DEMO_MODE` - set `true` for fake/demo data.
 
@@ -103,7 +103,7 @@ Set these required Render environment variables:
 - `JWT_SECRET_KEY`
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
-- `SEARCHAPI_KEY`
+- `SEARCHAPI_KEY` or `SEARCHAPI_KEYS`
 - `CORS_ORIGINS` = your Vercel production URL plus any preview URLs you want to allow
 
 Recommended backend values:
@@ -185,7 +185,7 @@ If login fails, verify `JWT_SECRET_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
 
 If the backend fails on startup with a PostgreSQL connection error, confirm a database is running on `localhost:5432` for host-based development, or start Docker Desktop and run `docker compose up -d db`.
 
-If collection is disabled or provider status looks degraded, confirm `SEARCHAPI_KEY` is set and that your SearchApi.io quota is not exhausted, or use `DEMO_MODE=true`.
+If collection is disabled or provider status looks degraded, confirm `SEARCHAPI_KEY` or `SEARCHAPI_KEYS` is set and that your SearchApi.io quota is not exhausted, or use `DEMO_MODE=true`.
 
 If the frontend cannot reach the API, verify `VITE_API_BASE_URL`, `CORS_ORIGINS`, and the deployed Render backend URL.
 

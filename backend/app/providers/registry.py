@@ -9,6 +9,7 @@ from app.providers.searchapi import (
     ProviderAuthError,
     ProviderQuotaExhaustedError,
     ProviderRateLimitedError,
+    SearchApiPoolProvider,
     SearchApiProvider,
 )
 
@@ -40,14 +41,26 @@ class ProviderRegistry:
 
             self.providers["demo"] = MockProvider()
 
-        elif settings.searchapi_key:
-            self.providers["searchapi"] = SearchApiProvider(
-                api_key=settings.searchapi_key,
-                timeout=settings.provider_timeout_seconds,
-                max_retries=settings.provider_max_retries,
-                concurrency_limit=settings.provider_concurrency_limit,
-                min_delay_seconds=settings.provider_min_delay_seconds,
-            )
+        else:
+            searchapi_keys = settings.get_searchapi_keys()
+            if searchapi_keys:
+                provider_cls = (
+                    SearchApiProvider
+                    if len(searchapi_keys) == 1
+                    else SearchApiPoolProvider
+                )
+                provider_kwargs = (
+                    {"api_key": searchapi_keys[0]}
+                    if len(searchapi_keys) == 1
+                    else {"api_keys": searchapi_keys}
+                )
+                self.providers["searchapi"] = provider_cls(
+                    **provider_kwargs,
+                    timeout=settings.provider_timeout_seconds,
+                    max_retries=settings.provider_max_retries,
+                    concurrency_limit=settings.provider_concurrency_limit,
+                    min_delay_seconds=settings.provider_min_delay_seconds,
+                )
 
     # --------------------------------------------------
     # INTERNAL

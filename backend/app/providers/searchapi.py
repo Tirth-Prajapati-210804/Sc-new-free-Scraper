@@ -628,3 +628,111 @@ class SearchApiProvider:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+
+class SearchApiPoolProvider:
+    name = "searchapi"
+
+    def __init__(
+        self,
+        api_keys: list[str],
+        timeout: int = 30,
+        max_retries: int = 3,
+        concurrency_limit: int = 2,
+        min_delay_seconds: float = 1.0,
+        quota_cooldown_seconds: int = 3600,
+    ) -> None:
+        self._providers = [
+            SearchApiProvider(
+                api_key=api_key,
+                timeout=timeout,
+                max_retries=max_retries,
+                concurrency_limit=concurrency_limit,
+                min_delay_seconds=min_delay_seconds,
+                quota_cooldown_seconds=quota_cooldown_seconds,
+            )
+            for api_key in api_keys
+            if api_key.strip()
+        ]
+        self._cursor = 0
+
+    def is_configured(self) -> bool:
+        return any(provider.is_configured() for provider in self._providers)
+
+    def _ordered_providers(self) -> list[SearchApiProvider]:
+        if not self._providers:
+            return []
+
+        start = self._cursor % len(self._providers)
+        self._cursor = (self._cursor + 1) % len(self._providers)
+        return self._providers[start:] + self._providers[:start]
+
+    async def _search_with_failover(self, search_fn) -> list[ProviderResult]:
+        last_exc: BaseException | None = None
+
+        for provider in self._ordered_providers():
+            try:
+                return await search_fn(provider)
+            except (
+                ProviderQuotaExhaustedError,
+                ProviderAuthError,
+                ProviderRateLimitedError,
+                RuntimeError,
+            ) as exc:
+                last_exc = exc
+                continue
+
+        if last_exc is not None:
+            raise last_exc
+
+        return []
+
+    async def search_one_way(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        return await self._search_with_failover(
+            lambda provider: provider.search_one_way(
+                origin=origin,
+                destination=destination,
+                depart_date=depart_date,
+                adults=adults,
+                cabin=cabin,
+                currency=currency,
+                max_stops=max_stops,
+            )
+        )
+
+    async def search_round_trip(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        return_date: date,
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        return await self._search_with_failover(
+            lambda provider: provider.search_round_trip(
+                origin=origin,
+                destination=destination,
+                depart_date=depart_date,
+                return_date=return_date,
+                adults=adults,
+                cabin=cabin,
+                currency=currency,
+                max_stops=max_stops,
+            )
+        )
+
+    async def close(self) -> None:
+        for provider in self._providers:
+            await provider.close()

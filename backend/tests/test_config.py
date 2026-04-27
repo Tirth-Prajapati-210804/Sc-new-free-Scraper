@@ -36,6 +36,16 @@ def test_cors_origins_from_comma_string() -> None:
     assert s.get_cors_origins() == ["http://localhost:3000", "http://localhost:5173"]
 
 
+def test_searchapi_keys_from_json_array() -> None:
+    s = make_settings(searchapi_keys='["key-one","key-two","key-three"]')
+    assert s.get_searchapi_keys() == ["key-one", "key-two", "key-three"]
+
+
+def test_searchapi_keys_fall_back_to_legacy_field_csv() -> None:
+    s = make_settings(searchapi_key="key-one,key-two,key-three")
+    assert s.get_searchapi_keys() == ["key-one", "key-two", "key-three"]
+
+
 def test_allowed_hosts_always_includes_platform_fallbacks() -> None:
     """A narrow ALLOWED_HOSTS env (e.g. stale Render config) must not lock
     the production hostnames out — wildcards for *.onrender.com / *.vercel.app

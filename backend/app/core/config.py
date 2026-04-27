@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Provider API keys (empty = disabled)
     searchapi_key: str = ""
+    searchapi_keys: str = ""
     demo_mode: bool = False
 
     # Scheduler
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
     def normalize_environment(cls, v: object) -> str:
         return str(v).strip().lower()
 
-    @field_validator("cors_origins", "allowed_hosts", mode="before")
+    @field_validator("cors_origins", "allowed_hosts", "searchapi_keys", mode="before")
     @classmethod
     def parse_list_to_string(cls, v: object) -> str:
         if isinstance(v, list):
@@ -84,6 +85,11 @@ class Settings(BaseSettings):
 
             return json.dumps(v)
         return str(v)
+
+    @field_validator("searchapi_key", mode="before")
+    @classmethod
+    def normalize_searchapi_key(cls, v: object) -> str:
+        return str(v).strip()
 
     @field_validator("cors_origins")
     @classmethod
@@ -123,6 +129,19 @@ class Settings(BaseSettings):
                 seen.add(host)
                 merged.append(host)
         return merged
+
+    def get_searchapi_keys(self) -> list[str]:
+        explicit_pool = self._parse_csv_or_json(self.searchapi_keys)
+        legacy_field = self._parse_csv_or_json(self.searchapi_key)
+        configured = explicit_pool if explicit_pool else legacy_field
+
+        seen: set[str] = set()
+        keys: list[str] = []
+        for key in configured:
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        return keys
 
     @field_validator("debug", "scheduler_enabled", "expose_api_docs", mode="before")
     @classmethod
