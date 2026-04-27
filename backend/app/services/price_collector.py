@@ -326,7 +326,7 @@ class PriceCollector:
 
             if self._is_route_cooled(route_key):
                 if self.on_item_progress:
-                    self.on_item_progress("skipped", dest, depart_date)
+                    self.on_item_progress("skipped", origin, dest, depart_date)
                 return "skipped"
 
             if stop_check and stop_check():
@@ -570,7 +570,6 @@ class PriceCollector:
                     stops = EXCLUDED.stops,
                     duration_minutes = EXCLUDED.duration_minutes,
                     scraped_at = now()
-                WHERE daily_cheapest_prices.price > EXCLUDED.price
             """),
             {
                 "route_group_id": str(route_group_id),

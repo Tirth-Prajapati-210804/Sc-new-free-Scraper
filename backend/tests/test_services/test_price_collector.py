@@ -199,6 +199,38 @@ async def test_collect_route_batch_stats() -> None:
 # ── upsert logic test (verifies SQL param assembly) ──────────────────────────
 
 @pytest.mark.asyncio
+async def test_collect_route_batch_cooled_route_reports_skipped_progress() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    provider = make_provider("serpapi", [make_result(1500)])
+    progress_calls: list[tuple[str, str, str, date]] = []
+    collector = PriceCollector(
+        session_factory=make_session_factory(session),
+        providers=[provider],
+        on_item_progress=lambda status, origin, destination, depart_date: progress_calls.append(
+            (status, origin, destination, depart_date)
+        ),
+    )
+    collector._upsert_cheapest = AsyncMock()
+    collector._route_cooldown[collector._route_key("YYZ", "NRT")] = 1
+
+    stats = await collector.collect_route_batch(
+        origin="YYZ",
+        destinations=["NRT"],
+        dates=[DEPART],
+        route_group_id=ROUTE_ID,
+        batch_size=1,
+        delay_seconds=0,
+    )
+
+    assert stats == {"success": 0, "errors": 0, "skipped": 1}
+    assert progress_calls == [("skipped", "YYZ", "NRT", DEPART)]
+    provider.search_one_way.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_upsert_cheapest_sends_correct_params() -> None:
     session = AsyncMock()
     session.execute = AsyncMock()
@@ -228,6 +260,7 @@ async def test_upsert_cheapest_sends_correct_params() -> None:
     assert params["provider"] == "serpapi"
     # Bare IATA code is expanded to the human-readable name on persistence.
     assert params["airline"] == "Air Canada"
+    assert "WHERE daily_cheapest_prices.price > EXCLUDED.price" not in str(call_args[0])
 
 
 @pytest.mark.asyncio

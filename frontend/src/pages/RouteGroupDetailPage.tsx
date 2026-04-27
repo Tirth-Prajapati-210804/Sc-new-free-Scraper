@@ -344,7 +344,15 @@ export function RouteGroupDetailPage() {
       {/* Price Table */}
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between gap-4 px-6 pt-6">
-          <h3 className="text-[15px] font-semibold text-slate-900">Price Data</h3>
+          <div>
+            <h3 className="text-[15px] font-semibold text-slate-900">Price Data</h3>
+            {group.trip_type === "multi_city" && group.special_sheets[0] ? (
+              <p className="mt-1 text-xs text-slate-400">
+                Each row is one total itinerary fare for {group.origins[0]} {"->"} {group.destinations[0]} and{" "}
+                {group.special_sheets[0].origin} {"->"} {group.origins[0]} after {group.nights} nights.
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <select
               aria-label="Filter by origin"
@@ -367,13 +375,16 @@ export function RouteGroupDetailPage() {
           </div>
         </div>
         <PriceTable
-            prices={allPrices}
-            isLoading={pricesLoading && allPrices.length === 0}
-            hasMore={priceHasMore}
-            onLoadMore={handlePriceLoadMore}
-            loadingMore={pricesLoading && allPrices.length > 0}
-            groupCurrency={group.currency}
-          />
+          prices={allPrices}
+          isLoading={pricesLoading && allPrices.length === 0}
+          hasMore={priceHasMore}
+          onLoadMore={handlePriceLoadMore}
+          loadingMore={pricesLoading && allPrices.length > 0}
+          groupCurrency={group.currency}
+          tripType={group.trip_type}
+          nights={group.nights}
+          returnOrigin={group.trip_type === "multi_city" ? (group.special_sheets[0]?.origin ?? null) : null}
+        />
       </Card>
 
       {editOpen && (

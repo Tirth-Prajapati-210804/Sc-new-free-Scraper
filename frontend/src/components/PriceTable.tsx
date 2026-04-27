@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+
 import type { DailyPrice } from "../types/price";
+import type { TripType } from "../types/route-group";
 import { formatRelativeTime } from "../utils/format";
 import { Button } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
@@ -10,7 +12,7 @@ interface Column {
   align?: "left" | "right";
 }
 
-const COLUMNS: Column[] = [
+const BASE_COLUMNS: Column[] = [
   { key: "depart_date", label: "Date" },
   { key: "origin", label: "Origin" },
   { key: "destination", label: "Destination" },
@@ -29,6 +31,65 @@ interface PriceTableProps {
   onLoadMore?: () => void;
   loadingMore?: boolean;
   groupCurrency?: string;
+  tripType?: TripType;
+  nights?: number;
+  returnOrigin?: string | null;
+}
+
+function addDays(rawDate: string, days: number): string {
+  const value = new Date(`${rawDate}T00:00:00`);
+  value.setDate(value.getDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function HeaderCell({
+  column,
+  sortDir,
+  sortKey,
+  onToggleSort,
+}: {
+  column: Column;
+  sortDir: "asc" | "desc";
+  sortKey: keyof DailyPrice;
+  onToggleSort: (key: keyof DailyPrice) => void;
+}) {
+  return (
+    <th
+      className={`cursor-pointer select-none px-6 py-3 hover:text-slate-700 ${
+        column.align === "right" ? "text-right" : ""
+      }`}
+      onClick={() => onToggleSort(column.key)}
+    >
+      {column.label} {sortKey === column.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+    </th>
+  );
+}
+
+function FragmentWithMultiCityHeaders({
+  column,
+  isMultiCity,
+  sortDir,
+  sortKey,
+  onToggleSort,
+}: {
+  column: Column;
+  isMultiCity: boolean;
+  sortDir: "asc" | "desc";
+  sortKey: keyof DailyPrice;
+  onToggleSort: (key: keyof DailyPrice) => void;
+}) {
+  return (
+    <>
+      <HeaderCell
+        column={column}
+        sortDir={sortDir}
+        sortKey={sortKey}
+        onToggleSort={onToggleSort}
+      />
+      {isMultiCity && column.key === "destination" ? <th className="px-6 py-3">Return From</th> : null}
+      {isMultiCity && column.key === "destination" ? <th className="px-6 py-3">Return Date</th> : null}
+    </>
+  );
 }
 
 export function PriceTable({
@@ -38,9 +99,28 @@ export function PriceTable({
   onLoadMore,
   loadingMore,
   groupCurrency,
+  tripType,
+  nights = 0,
+  returnOrigin,
 }: PriceTableProps) {
   const [sortKey, setSortKey] = useState<keyof DailyPrice>("depart_date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const isMultiCity = tripType === "multi_city";
+  const columns = useMemo(() => {
+    if (!isMultiCity) {
+      return BASE_COLUMNS;
+    }
+
+    return BASE_COLUMNS.map((column) => {
+      if (column.key === "destination") {
+        return { ...column, label: "Outbound To" };
+      }
+      if (column.key === "price") {
+        return { ...column, label: "Total Fare" };
+      }
+      return column;
+    });
+  }, [isMultiCity]);
 
   function toggleSort(key: keyof DailyPrice) {
     if (sortKey === key) {
@@ -83,16 +163,15 @@ export function PriceTable({
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-              {COLUMNS.map((col) => (
-                <th
+              {columns.map((col) => (
+                <FragmentWithMultiCityHeaders
                   key={col.key}
-                  className={`cursor-pointer select-none px-6 py-3 hover:text-slate-700 ${
-                    col.align === "right" ? "text-right" : ""
-                  }`}
-                  onClick={() => toggleSort(col.key)}
-                >
-                  {col.label} {sortKey === col.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                </th>
+                  column={col}
+                  isMultiCity={isMultiCity}
+                  sortDir={sortDir}
+                  sortKey={sortKey}
+                  onToggleSort={toggleSort}
+                />
               ))}
             </tr>
           </thead>
@@ -116,13 +195,25 @@ export function PriceTable({
                     {price.destination}
                   </span>
                 </td>
+                {isMultiCity ? (
+                  <td className="px-6 py-3 text-slate-700">
+                    <span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-semibold text-amber-700">
+                      {returnOrigin || "-"}
+                    </span>
+                  </td>
+                ) : null}
+                {isMultiCity ? (
+                  <td className="px-6 py-3 text-slate-700">{addDays(price.depart_date, nights)}</td>
+                ) : null}
                 <td className="px-6 py-3 text-slate-700">{price.airline}</td>
                 <td className="px-6 py-3 text-slate-700">
-                  {price.stops == null
-                    ? "-"
-                    : price.stops === 0
-                      ? <span className="font-medium text-green-600">Direct</span>
-                      : `${price.stops} stop${price.stops > 1 ? "s" : ""}`}
+                  {price.stops == null ? (
+                    "-"
+                  ) : price.stops === 0 ? (
+                    <span className="font-medium text-green-600">Direct</span>
+                  ) : (
+                    `${price.stops} stop${price.stops > 1 ? "s" : ""}`
+                  )}
                 </td>
                 <td className="px-6 py-3 text-slate-700">
                   {price.duration_minutes == null
