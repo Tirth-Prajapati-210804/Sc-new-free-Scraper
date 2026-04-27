@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.route_group import RouteGroupCreate, RouteGroupFromTextCreate
+from app.schemas.route_group import RouteGroupCreate
 
 
 def test_route_group_create_normalizes_codes_and_currency() -> None:
@@ -41,9 +41,11 @@ def test_route_group_rejects_invalid_currency() -> None:
 
 def test_route_group_rejects_invalid_date_range() -> None:
     with pytest.raises(ValidationError):
-        RouteGroupFromTextCreate(
-            origin="Canada",
-            destination="Japan",
+        RouteGroupCreate(
+            name="Canada to Japan",
+            destination_label="Japan",
+            destinations=["NRT"],
+            origins=["YVR"],
             start_date=date(2026, 5, 10),
             end_date=date(2026, 5, 1),
         )

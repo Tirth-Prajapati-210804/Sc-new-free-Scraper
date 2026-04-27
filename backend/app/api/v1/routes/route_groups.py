@@ -16,14 +16,12 @@ from app.models.user import User
 from app.schemas.location import LocationSuggestion
 from app.schemas.route_group import (
     RouteGroupCreate,
-    RouteGroupFromTextCreate,
-    RouteGroupFromTextResponse,
     RouteGroupProgress,
     RouteGroupResponse,
     RouteGroupUpdate,
 )
 from app.services import export_service, route_group_service
-from app.utils.location_resolver import resolve_location, search_location_suggestions
+from app.utils.location_resolver import search_location_suggestions
 
 router = APIRouter(prefix="/route-groups", tags=["route-groups"])
 
@@ -46,97 +44,6 @@ async def location_suggestions(
 async def list_groups(session: _DB, current_user: _Auth, active_only: bool = True) -> list[RouteGroupResponse]:
     groups = await route_group_service.list_all(session, active_only=active_only)
     return [RouteGroupResponse.model_validate(g) for g in groups]
-
-
-@router.post(
-    "/from-text",
-    response_model=RouteGroupFromTextResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create route group from plain-text location names",
-)
-async def create_group_from_text(
-    body: RouteGroupFromTextCreate, session: _DB, current_user: _Auth
-) -> RouteGroupFromTextResponse:
-    """
-    Create a route group by typing location names like 'Canada' and 'Vietnam'.
-    The API resolves them to IATA airport codes automatically.
-
-    Examples:
-    - origin='Canada'  → YYZ, YVR, YEG, YYC, YHZ, YUL, YOW
-    - destination='Vietnam' → SGN, HAN, DAD
-    - destination='Tokyo'  → NRT, HND
-    - destination='TYO, SHA' → TYO, SHA  (raw IATA pass-through)
-    """
-    def resolve_required(value: str, field_name: str) -> list[str]:
-        resolved = resolve_location(value)
-        if resolved:
-            return resolved
-
-        examples = {
-            "origin": "Try a country name (e.g. 'Canada'), city name (e.g. 'Toronto'), or IATA codes like 'YYZ, YVR'.",
-            "destination": "Try a country name (e.g. 'Vietnam'), city name (e.g. 'Tokyo'), or IATA codes like 'SGN, HAN'.",
-        }
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Could not resolve {field_name} '{value}' to any airport codes. {examples[field_name]}",
-        )
-
-    origins = resolve_required(body.origin, "origin")
-    destinations = resolve_required(body.destination, "destination")
-
-    origin_label = body.origin.title()
-    dest_label = body.destination.title()
-    base_name = f"{origin_label} to {dest_label}"
-    name = f"{base_name} ({uuid.uuid4().hex[:4].upper()})"
-    destination_label = dest_label
-
-    special_sheets = []
-    if body.trip_type == "multi_city":
-        if len(body.extra_legs) != 1:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Add exactly one return leg for a multi-city route group.",
-            )
-
-        leg = body.extra_legs[0]
-        return_origins = resolve_required(leg.origin, "origin")
-        if len(return_origins) != 1:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Return leg must resolve to exactly one departure airport for a multi-city route group.",
-            )
-
-        special_sheets.append(
-            {
-                "name": leg.name or "Return Leg",
-                "origin": return_origins[0],
-                "destination_label": origin_label,
-                "destinations": origins,
-                "columns": 4,
-            }
-        )
-
-    create_payload = RouteGroupCreate(
-        name=name,
-        destination_label=destination_label,
-        origins=origins,
-        destinations=destinations,
-        nights=body.nights,
-        days_ahead=body.days_ahead,
-        sheet_name_map={o: o for o in origins},
-        special_sheets=special_sheets,
-        currency=body.currency,
-        max_stops=body.max_stops,
-        start_date=body.start_date,
-        end_date=body.end_date,
-        trip_type=body.trip_type,
-    )
-    group = await route_group_service.create(session, create_payload, owner_id=current_user.id)
-    return RouteGroupFromTextResponse(
-        group=RouteGroupResponse.model_validate(group),
-        resolved_origins=origins,
-        resolved_destinations=destinations,
-    )
 
 
 @router.post("/", response_model=RouteGroupResponse, status_code=status.HTTP_201_CREATED)

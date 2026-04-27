@@ -10,13 +10,11 @@ import {
 import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "./ui/Button";
-import { LocationAutocompleteInput } from "./ui/LocationAutocompleteInput";
 import { Modal } from "./ui/Modal";
 import { TagInput } from "./ui/TagInput";
 
 import {
   createRouteGroup,
-  createRouteGroupFromText,
   updateRouteGroup,
 } from "../api/route-groups";
 import { getErrorMessage } from "../api/client";
@@ -36,18 +34,6 @@ interface ManualLeg {
   to: string[];
   name: string;
   city: string;
-}
-
-interface QuickState {
-  from: string;
-  to: string;
-  returnFrom: string;
-  nights: string;
-  days: string;
-  currency: string;
-  startDate: string;
-  endDate: string;
-  stops: string;
 }
 
 interface ManualState {
@@ -453,197 +439,6 @@ function ManualLegCard({
   );
 }
 
-function QuickSetupForm({
-  state,
-  setState,
-  tripType,
-  onSubmit,
-  saving,
-  onClose,
-  error,
-}: {
-  state: QuickState;
-  setState: React.Dispatch<React.SetStateAction<QuickState>>;
-  tripType: UiTripType;
-  onSubmit: (e: FormEvent) => void;
-  saving: boolean;
-  onClose: () => void;
-  error: string;
-}) {
-  function patch<K extends keyof QuickState>(key: K, value: QuickState[K]) {
-    setState((current) => ({ ...current, [key]: value }));
-  }
-
-  function swapQuickRoute() {
-    setState((current) => ({
-      ...current,
-      from: current.to,
-      to: current.from,
-    }));
-  }
-
-  return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <div>
-        <div className="mb-2.5 text-[12px] font-semibold text-slate-600">
-          {tripType === "oneway" ? "Flight" : "Outbound Leg"}
-        </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
-          <div>
-            <Label>Departure</Label>
-            <LocationAutocompleteInput
-              value={state.from}
-              onChange={(next) => patch("from", next)}
-              placeholder="City name or airport code"
-              required
-            />
-          </div>
-          <div className="flex items-center justify-center pb-1">
-            <button
-              type="button"
-              onClick={swapQuickRoute}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50"
-              aria-label="Swap departure and destination"
-            >
-              <ArrowLeftRight className="h-4 w-4" />
-            </button>
-          </div>
-          <div>
-            <Label>Destination</Label>
-            <LocationAutocompleteInput
-              value={state.to}
-              onChange={(next) => patch("to", next)}
-              placeholder="City name or airport code"
-              required
-            />
-          </div>
-        </div>
-      </div>
-
-      {tripType === "roundtrip" ? (
-        <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-[12px] font-semibold text-slate-600">Return Leg</span>
-            <span className="text-[12px] text-slate-400">Auto-generated from outbound</span>
-          </div>
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-400">
-              {state.to || "Berlin / BER"}
-            </div>
-            <ChevronRight className="mx-auto h-4 w-4 text-slate-300" />
-            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-400">
-              {state.from || "Toronto / YYZ"}
-            </div>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-400">
-            Return date is offset from departure by your nights at destination.
-          </div>
-        </div>
-      ) : null}
-
-      {tripType === "multicity" ? (
-        <div>
-          <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Return Leg</div>
-          <div className="space-y-3 rounded-[10px] border border-slate-200 bg-white p-4">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
-              <div>
-                <Label>Return From</Label>
-                <LocationAutocompleteInput
-                  value={state.returnFrom}
-                  onChange={(next) => patch("returnFrom", next)}
-                  placeholder="City name or airport code"
-                  required
-                />
-              </div>
-              <div className="flex items-center justify-center pb-1">
-                <ChevronRight className="h-4 w-4 text-slate-300" />
-              </div>
-              <div>
-                <Label>Return To</Label>
-                <div className="flex h-[46px] items-center rounded-[10px] border border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">
-                  {state.from || "Original outbound origin"}
-                </div>
-              </div>
-            </div>
-            <div className="text-[11px] text-slate-400">
-              This mode searches one open-jaw itinerary total, and the return date shifts automatically by your stay nights.
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div>
-        <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Tracking Window</div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <Label>Nights at Destination</Label>
-            <TextInput
-              value={state.nights}
-              onChange={(e) => patch("nights", e.target.value)}
-              type="number"
-              min={1}
-            />
-          </div>
-          <div>
-            <Label>Booking Window (days)</Label>
-            <TextInput
-              value={state.days}
-              onChange={(e) => patch("days", e.target.value)}
-              type="number"
-              min={1}
-            />
-            <FieldHint>How many days ahead to scan</FieldHint>
-          </div>
-        </div>
-      </div>
-
-      <AdvancedSettings
-        currency={state.currency}
-        setCurrency={(value) => patch("currency", value)}
-        startDate={state.startDate}
-        setStartDate={(value) => patch("startDate", value)}
-        endDate={state.endDate}
-        setEndDate={(value) => patch("endDate", value)}
-        stops={state.stops}
-        setStops={(value) => patch("stops", value)}
-        tripType={tripType}
-      />
-
-      {error ? (
-        <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-[11px] text-slate-400">
-          {tripType === "multicity"
-            ? "Quick setup creates one combined open-jaw itinerary total."
-            : "You can refine the route group after it is created."}
-        </div>
-        <div className="flex gap-2 self-end">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            loading={saving}
-            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
-          >
-            Create Group
-          </Button>
-        </div>
-      </div>
-    </form>
-  );
-}
-
 function CustomBuilderForm({
   state,
   setState,
@@ -849,19 +644,7 @@ export function RouteGroupForm({
 }: RouteGroupFormProps) {
   const qc = useQueryClient();
   const { showToast } = useToast();
-  const [tab, setTab] = useState<"quick" | "manual">(initial ? "manual" : "quick");
   const [tripType, setTripType] = useState<UiTripType>(tripTypeToUi(initial?.trip_type));
-  const [quickState, setQuickState] = useState<QuickState>({
-    from: "",
-    to: "",
-    returnFrom: "",
-    nights: "10",
-    days: "365",
-    currency: "USD",
-    startDate: "",
-    endDate: "",
-    stops: "prefer-1",
-  });
   const [manualState, setManualState] = useState<ManualState>(() => buildInitialManualState(initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -869,20 +652,8 @@ export function RouteGroupForm({
   useEffect(() => {
     if (!open) return;
 
-    setTab(initial ? "manual" : "quick");
     setTripType(tripTypeToUi(initial?.trip_type));
     setError("");
-    setQuickState({
-      from: "",
-      to: "",
-      returnFrom: "",
-      nights: "10",
-      days: "365",
-      currency: "USD",
-      startDate: "",
-      endDate: "",
-      stops: "prefer-1",
-    });
     setManualState(buildInitialManualState(initial));
   }, [initial, open]);
 
@@ -893,7 +664,6 @@ export function RouteGroupForm({
   useEffect(() => {
     if (tripType !== "multicity") return;
 
-    setQuickState((current) => (current.stops === "any" ? { ...current, stops: "prefer-1" } : current));
     setManualState((current) => {
       const nextExtraLegs = current.extraLegs.length
         ? [{ ...current.extraLegs[0], to: current.mainLeg.from }]
@@ -914,43 +684,6 @@ export function RouteGroupForm({
     await qc.invalidateQueries({ queryKey: ["route-groups"] });
     if (groupId) {
       await qc.invalidateQueries({ queryKey: ["route-group", groupId] });
-    }
-  }
-
-  async function handleQuickSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-
-    try {
-      const created = await createRouteGroupFromText({
-        origin: quickState.from.trim(),
-        destination: quickState.to.trim(),
-        nights: parsePositiveInt(quickState.nights, 10),
-        days_ahead: parsePositiveInt(quickState.days, 365),
-        currency: quickState.currency,
-        max_stops: stopToApi(quickState.stops),
-        start_date: quickState.startDate || null,
-        end_date: quickState.endDate || null,
-        trip_type: tripTypeToApi(tripType),
-        extra_legs:
-          tripType === "multicity"
-            ? [
-                {
-                  origin: quickState.returnFrom.trim(),
-                  destination: quickState.from.trim(),
-                },
-              ]
-            : [],
-      });
-
-      await refreshQueries(created.group.id);
-      showToast(`Created: ${created.group.name}`, "success");
-      onClose();
-    } catch (err) {
-      setError(getErrorMessage(err, "Could not create route group."));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -1032,53 +765,17 @@ export function RouteGroupForm({
       eyebrowClassName="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
       closeButtonClassName="h-[50px] w-[50px] rounded-[18px] border-slate-200 text-slate-300 hover:bg-slate-50 hover:text-slate-500"
     >
-      {!isEditing ? (
-        <div className="mb-6 rounded-[10px] bg-slate-100 p-[3px]">
-          <div className="grid grid-cols-2 gap-1">
-            {[
-              { id: "quick", label: "Quick Setup" },
-              { id: "manual", label: "Custom Builder" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id as "quick" | "manual")}
-                className={`rounded-[8px] px-3 py-2 text-[13px] font-semibold transition ${
-                  tab === item.id
-                    ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
-                    : "text-slate-400"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <TripTypeSelector tripType={tripType} onChange={setTripType} />
 
-      {tab === "quick" && !isEditing ? (
-        <QuickSetupForm
-          state={quickState}
-          setState={setQuickState}
-          tripType={tripType}
-          onSubmit={handleQuickSubmit}
-          saving={saving}
-          onClose={onClose}
-          error={error}
-        />
-      ) : (
-        <CustomBuilderForm
-          state={manualState}
-          setState={setManualState}
-          isEditing={isEditing}
-          onSubmit={handleManualSubmit}
-          saving={saving}
-          onClose={onClose}
-          error={error}
-        />
-      )}
+      <CustomBuilderForm
+        state={manualState}
+        setState={setManualState}
+        isEditing={isEditing}
+        onSubmit={handleManualSubmit}
+        saving={saving}
+        onClose={onClose}
+        error={error}
+      />
     </Modal>
   );
 }

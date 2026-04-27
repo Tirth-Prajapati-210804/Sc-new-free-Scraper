@@ -15,34 +15,6 @@ VALID_GROUP = {
 
 
 @pytest.mark.asyncio
-async def test_create_multi_city_group_from_text(auth_client):
-    res = await auth_client.post(
-        "/api/v1/route-groups/from-text",
-        json={
-            "origin": "Toronto",
-            "destination": "Berlin",
-            "trip_type": "multi_city",
-            "nights": 5,
-            "days_ahead": 7,
-            "extra_legs": [
-                {
-                    "origin": "Berlin",
-                    "destination": "Tokyo",
-                    "name": "Leg 2",
-                    "destination_label": "Tokyo",
-                }
-            ],
-        },
-    )
-    assert res.status_code == 201
-    data = res.json()["group"]
-    assert data["trip_type"] == "multi_city"
-    assert len(data["special_sheets"]) == 1
-    assert data["special_sheets"][0]["origin"]
-    assert data["special_sheets"][0]["destinations"]
-
-
-@pytest.mark.asyncio
 async def test_export_route_group_returns_excel_file(auth_client, db_session_factory):
     from datetime import date
     from decimal import Decimal

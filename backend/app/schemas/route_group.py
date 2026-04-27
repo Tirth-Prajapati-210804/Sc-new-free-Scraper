@@ -9,6 +9,7 @@ _IATA_PATTERN = r"^[A-Z0-9]{2,4}$"
 _CURRENCY_PATTERN = r"^[A-Z]{3}$"
 _ALLOWED_TRIP_TYPES = {"one_way", "round_trip", "multi_city"}
 
+
 def _normalize_iata_codes(v: object) -> list[str] | object:
     import re
 
@@ -29,7 +30,8 @@ def _normalize_text(value: str) -> str:
     if not normalized:
         raise ValueError("Value cannot be blank")
     return normalized
-    
+
+
 def _normalize_trip_type(value: object) -> str:
     trip = str(value).strip().lower()
 
@@ -39,6 +41,7 @@ def _normalize_trip_type(value: object) -> str:
         )
 
     return trip
+
 
 class SpecialSheetConfig(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -79,7 +82,7 @@ class RouteGroupCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     trip_type: str = Field(default="one_way")
-    
+
     @field_validator("name", "destination_label")
     @classmethod
     def normalize_text_fields(cls, value: str) -> str:
@@ -200,70 +203,6 @@ class RouteGroupResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     trip_type: str
-
-
-class RouteGroupFromTextCreate(BaseModel):
-    """Create a route group using plain-text location names instead of raw IATA codes."""
-
-    origin: str = Field(min_length=1, max_length=200, description="e.g. 'Canada' or 'Toronto'")
-    destination: str = Field(min_length=1, max_length=200, description="e.g. 'Vietnam' or 'Tokyo'")
-    nights: int = Field(ge=1, le=90, default=10)
-    days_ahead: int = Field(ge=1, le=730, default=365)
-    currency: str = Field(default="USD", pattern=_CURRENCY_PATTERN)
-    max_stops: int | None = Field(default=None, ge=0, le=3)
-    start_date: date | None = None
-    end_date: date | None = None
-    trip_type: str = Field(default="round_trip")
-    extra_legs: list["RouteGroupFromTextLeg"] = Field(default_factory=list)
-
-    @field_validator("origin", "destination")
-    @classmethod
-    def normalize_location(cls, value: str) -> str:
-        return _normalize_text(value)
-
-    @field_validator("currency", mode="before")
-    @classmethod
-    def uppercase_currency(cls, value: object) -> str:
-        return str(value).strip().upper()
-
-    @field_validator("trip_type", mode="before")
-    @classmethod
-    def validate_trip_type(cls, value: object) -> str:
-        return _normalize_trip_type(value)
-
-    @model_validator(mode="after")
-    def validate_dates(self) -> "RouteGroupFromTextCreate":
-        if self.start_date and self.end_date and self.end_date < self.start_date:
-            raise ValueError("end_date must be on or after start_date")
-        return self
-
-
-class RouteGroupFromTextLeg(BaseModel):
-    origin: str = Field(min_length=1, max_length=200)
-    destination: str = Field(min_length=1, max_length=200)
-    name: str | None = Field(default=None, max_length=100)
-    destination_label: str | None = Field(default=None, max_length=100)
-
-    @field_validator("origin", "destination")
-    @classmethod
-    def normalize_location(cls, value: str) -> str:
-        return _normalize_text(value)
-
-    @field_validator("name", "destination_label")
-    @classmethod
-    def normalize_optional_text(cls, value: str | None) -> str | None:
-        return _normalize_text(value) if value is not None else None
-
-
-RouteGroupFromTextCreate.model_rebuild()
-
-
-class RouteGroupFromTextResponse(BaseModel):
-    """Response for /from-text endpoint — includes the created group plus resolved codes."""
-
-    group: RouteGroupResponse
-    resolved_origins: list[str]
-    resolved_destinations: list[str]
 
 
 class PerOriginProgress(BaseModel):

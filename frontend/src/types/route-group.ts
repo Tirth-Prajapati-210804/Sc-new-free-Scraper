@@ -1,29 +1,3 @@
-export interface RouteGroupFromTextCreate {
-  origin: string;
-  destination: string;
-  nights?: number;
-  days_ahead?: number;
-  currency?: string;
-  max_stops?: number | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  trip_type?: TripType;
-  extra_legs?: RouteGroupFromTextLeg[];
-}
-
-export interface RouteGroupFromTextLeg {
-  origin: string;
-  destination: string;
-  name?: string | null;
-  destination_label?: string | null;
-}
-
-export interface RouteGroupFromTextResponse {
-  group: RouteGroup;
-  resolved_origins: string[];
-  resolved_destinations: string[];
-}
-
 export type TripType = "one_way" | "round_trip" | "multi_city";
 
 export interface RouteGroup {
