@@ -77,10 +77,10 @@ const TRIP_TYPES: Array<{
 
 const STOP_OPTIONS = [
   { id: "any", label: "Any", value: null as number | null },
-  { id: "direct", label: "Direct", value: 0 },
-  { id: "prefer-1", label: "Prefer 1", value: 3 },
-  { id: "1-stop", label: "1 Stop", value: 1 },
-  { id: "2-stops", label: "2 Stops", value: 2 },
+  { id: "prefer-1", label: "Prefer 1 Stop", value: 3 },
+  { id: "direct", label: "Direct Only", value: 0 },
+  { id: "1-stop", label: "Up to 1 Stop", value: 1 },
+  { id: "2-stops", label: "Up to 2 Stops", value: 2 },
 ];
 
 function emptyLeg(): ManualLeg {
@@ -100,7 +100,7 @@ function tripTypeToApi(type: UiTripType): TripType {
 }
 
 function stopToUi(value: number | null | undefined): string {
-  return STOP_OPTIONS.find((option) => option.value === value)?.id ?? "any";
+  return STOP_OPTIONS.find((option) => option.value === value)?.id ?? "prefer-1";
 }
 
 function stopToApi(value: string): number | null {
@@ -262,9 +262,19 @@ function StopSelector({
           );
         })}
       </div>
-      {tripType === "multicity" ? (
-        <FieldHint>Multi-city searches use fallback priority: 1 stop, then 2 stop, then direct.</FieldHint>
-      ) : null}
+      <FieldHint>
+        {value === "prefer-1"
+          ? "Recommended. Searches 1-stop first, then 2-stop, then direct if needed."
+          : value === "1-stop"
+            ? "Allows direct and 1-stop itineraries."
+            : value === "2-stops"
+              ? "Allows direct, 1-stop, and 2-stop itineraries."
+              : value === "direct"
+                ? "Only nonstop flights will be considered."
+                : tripType === "multicity"
+                  ? "Use Prefer 1 Stop for the client-style fallback behavior."
+                  : "Choose how broadly the search can expand across stop counts."}
+      </FieldHint>
     </div>
   );
 }
@@ -850,7 +860,7 @@ export function RouteGroupForm({
     currency: "USD",
     startDate: "",
     endDate: "",
-    stops: "any",
+    stops: "prefer-1",
   });
   const [manualState, setManualState] = useState<ManualState>(() => buildInitialManualState(initial));
   const [saving, setSaving] = useState(false);
@@ -871,7 +881,7 @@ export function RouteGroupForm({
       currency: "USD",
       startDate: "",
       endDate: "",
-      stops: "any",
+      stops: "prefer-1",
     });
     setManualState(buildInitialManualState(initial));
   }, [initial, open]);

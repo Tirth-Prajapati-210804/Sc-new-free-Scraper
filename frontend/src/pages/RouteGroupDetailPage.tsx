@@ -29,7 +29,7 @@ function formatStopsLabel(v: number | null): string {
   if (v === 0) return "Direct only";
   if (v === 1) return "Up to 1 stop";
   if (v === 2) return "Up to 2 stops";
-  if (v === 3) return "Prefer 1-stop";
+  if (v === 3) return "Prefer 1 stop (fallback)";
   return String(v);
 }
 
