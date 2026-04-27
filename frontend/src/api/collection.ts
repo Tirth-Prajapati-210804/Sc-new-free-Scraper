@@ -5,8 +5,13 @@ export interface CollectionProgress {
   routes_total: number;
   routes_done: number;
   routes_failed: number;
+  prices_total: number;
+  prices_done: number;
+  prices_failed: number;
   dates_scraped: number;
   current_origin: string;
+  current_destination: string;
+  current_date: string;
 }
 
 export interface CollectionStatus {

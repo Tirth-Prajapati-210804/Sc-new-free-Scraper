@@ -246,3 +246,68 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
     assert captured[1]["destinations"] == ["NRT", "HND"]
     assert captured[1]["trip_type"] == "one_way"
     assert captured[1]["nights"] is None
+
+
+@pytest.mark.asyncio
+async def test_trigger_single_group_updates_live_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from uuid import uuid4
+
+    from app.tasks import scheduler as scheduler_module
+
+    scheduler = make_scheduler()
+    scheduler.settings.scrape_batch_size = 4
+    scheduler.settings.scrape_delay_seconds = 0.0
+
+    group = MagicMock()
+    group.id = uuid4()
+    group.is_active = True
+    group.origins = ["AMD"]
+    group.destinations = ["YYZ"]
+    group.currency = "USD"
+    group.max_stops = None
+    group.trip_type = "one_way"
+    group.nights = 0
+    group.start_date = None
+    group.end_date = None
+    group.days_ahead = 7
+
+    class DummyCollector:
+        def __init__(self, *a, **kw) -> None:
+            self.on_item_progress = kw["on_item_progress"]
+
+        async def collect_route_batch(self, **kwargs):
+            self.on_item_progress("success", "YYZ", D1)
+            self.on_item_progress("skipped", "YYZ", D2)
+            return {"success": 1, "errors": 0, "skipped": 1}
+
+    monkeypatch.setattr(scheduler_module, "PriceCollector", DummyCollector)
+
+    fake_provider = MagicMock()
+    fake_provider.is_configured.return_value = True
+    scheduler.provider_registry.get_enabled = MagicMock(return_value=[fake_provider])
+
+    select_result = MagicMock()
+    select_result.scalar_one_or_none.return_value = group
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=select_result)
+
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=session)
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+    scheduler.session_factory = factory
+
+    scheduler._filter_already_scraped = AsyncMock(return_value=[D1, D2])
+
+    stats = await scheduler.trigger_single_group(group.id)
+
+    assert stats == {"success": 1, "errors": 0, "skipped": 1}
+    assert scheduler.progress["routes_total"] == 1
+    assert scheduler.progress["routes_done"] == 1
+    assert scheduler.progress["prices_total"] == 2
+    assert scheduler.progress["prices_done"] == 2
+    assert scheduler.progress["dates_scraped"] == 1
+    assert scheduler.progress["current_origin"] == "AMD"
+    assert scheduler.progress["current_destination"] == "YYZ"
+    assert scheduler.progress["current_date"] == D2.isoformat()

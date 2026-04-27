@@ -61,7 +61,7 @@ export function RouteGroupDetailPage() {
     queryKey: ["route-group-progress", id],
     queryFn: () => getRouteGroupProgress(id!),
     enabled: !!id,
-    refetchInterval: 60_000,
+    refetchInterval: 10_000,
   });
 
   const group = groupQuery.data;
@@ -140,6 +140,7 @@ export function RouteGroupDetailPage() {
     try {
       await triggerGroupCollection(id);
       showToast("Collection triggered successfully", "success");
+      qc.invalidateQueries({ queryKey: ["collection-status"] });
       qc.invalidateQueries({ queryKey: ["route-group-progress", id] });
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to trigger collection"), "error");
@@ -153,6 +154,7 @@ export function RouteGroupDetailPage() {
     try {
       await triggerGroupCollectionDate(id, date);
       showToast(`Re-scrape triggered for ${date}`, "success");
+      qc.invalidateQueries({ queryKey: ["collection-status"] });
       qc.invalidateQueries({ queryKey: ["route-group-progress", id] });
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to trigger re-scrape"), "error");

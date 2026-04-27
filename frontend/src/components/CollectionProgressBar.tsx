@@ -13,11 +13,13 @@ interface Props {
 export function CollectionProgressBar({
   progress,
 }: Props) {
+  const processedTotal = progress.prices_total > 0 ? progress.prices_total : progress.routes_total;
+  const processedDone = progress.prices_total > 0 ? progress.prices_done : progress.routes_done;
   const pct =
-    progress.routes_total > 0
+    processedTotal > 0
       ? Math.round(
-        (progress.routes_done /
-          progress.routes_total) *
+        (processedDone /
+          processedTotal) *
         100
       )
       : 0;
@@ -52,12 +54,12 @@ export function CollectionProgressBar({
       <div className="mt-3">
         <div className="mb-1.5 flex items-center justify-between text-xs text-brand-700">
           <span>
-            {progress.routes_done}/
-            {progress.routes_total} routes
+            {processedDone}/
+            {processedTotal} checks
           </span>
 
           <span>
-            {progress.dates_scraped.toLocaleString()} prices
+            {progress.dates_scraped.toLocaleString()} prices saved
           </span>
         </div>
 
@@ -76,24 +78,33 @@ export function CollectionProgressBar({
         <div className="text-brand-700">
           {progress.current_origin ? (
             <>
-              Current origin:{" "}
+              Live route:{" "}
               <span className="font-mono font-semibold text-brand-900">
-                {
-                  progress.current_origin
-                }
+                {progress.current_origin}
               </span>
+              {progress.current_destination ? (
+                <>
+                  {" -> "}
+                  <span className="font-mono font-semibold text-brand-900">
+                    {progress.current_destination}
+                  </span>
+                </>
+              ) : null}
+              {progress.current_date ? <> on {progress.current_date}</> : null}
             </>
           ) : (
             "Preparing routes..."
           )}
         </div>
 
-        {progress.routes_failed > 0 && (
+        {progress.routes_failed > 0 || progress.prices_failed > 0 ? (
           <div className="inline-flex items-center gap-1 text-red-600">
             <AlertTriangle className="h-3.5 w-3.5" />
-            {progress.routes_failed} failed
+            {progress.prices_failed > 0
+              ? `${progress.prices_failed} checks failed`
+              : `${progress.routes_failed} routes failed`}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

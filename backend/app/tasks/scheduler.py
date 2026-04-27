@@ -52,8 +52,13 @@ class FlightScheduler:
             "routes_total": 0,
             "routes_done": 0,
             "routes_failed": 0,
+            "prices_total": 0,
+            "prices_done": 0,
+            "prices_failed": 0,
             "dates_scraped": 0,
             "current_origin": "",
+            "current_destination": "",
+            "current_date": "",
         }
 
     # --------------------------------------------------
@@ -71,6 +76,41 @@ class FlightScheduler:
     @property
     def progress(self) -> dict:
         return dict(self._progress)
+
+    def _reset_progress(self) -> None:
+        self._progress = {
+            "routes_total": 0,
+            "routes_done": 0,
+            "routes_failed": 0,
+            "prices_total": 0,
+            "prices_done": 0,
+            "prices_failed": 0,
+            "dates_scraped": 0,
+            "current_origin": "",
+            "current_destination": "",
+            "current_date": "",
+        }
+
+    def _record_item_progress(
+        self,
+        status: str,
+        origin: str,
+        destination: str,
+        depart_date: date,
+    ) -> None:
+        self._progress["current_origin"] = origin
+        self._progress["current_destination"] = destination
+        self._progress["current_date"] = depart_date.isoformat()
+
+        if status == "stopped":
+            return
+
+        self._progress["prices_done"] += 1
+
+        if status == "success":
+            self._progress["dates_scraped"] += 1
+        elif status == "error":
+            self._progress["prices_failed"] += 1
 
     def request_stop(self) -> None:
         self._stop_requested = True
@@ -161,13 +201,6 @@ class FlightScheduler:
                     )
                     groups = list(groups_result.scalars().all())
 
-                    collector = PriceCollector(
-                        session_factory=self.session_factory,
-                        providers=providers,
-                        on_provider_success=self.provider_registry.report_success,
-                        on_provider_failure=self.provider_registry.report_failure,
-                    )
-
                     ranked_routes = []
 
                     for group in groups:
@@ -193,34 +226,51 @@ class FlightScheduler:
 
                     total_success = 0
                     total_errors = 0
-
-                    self._progress = {
-                        "routes_total": len(ranked_routes),
-                        "routes_done": 0,
-                        "routes_failed": 0,
-                        "dates_scraped": 0,
-                        "current_origin": "",
-                    }
+                    planned_routes: list[tuple[RouteGroup, object, list[date]]] = []
+                    self._reset_progress()
 
                     for _, group, segment, dates in ranked_routes:
                         if self._stop_requested:
                             break
 
+                        remaining = await self._filter_already_scraped(
+                            session=session,
+                            route_group_id=group.id,
+                            origin=segment.origin,
+                            destinations=segment.destinations,
+                            dates=dates,
+                        )
+
+                        if not remaining:
+                            continue
+
+                        planned_routes.append((group, segment, remaining))
+                        self._progress["prices_total"] += len(remaining) * len(segment.destinations)
+
+                    self._progress["routes_total"] = len(planned_routes)
+
+                    collector = PriceCollector(
+                        session_factory=self.session_factory,
+                        providers=providers,
+                        on_provider_success=self.provider_registry.report_success,
+                        on_provider_failure=self.provider_registry.report_failure,
+                        on_item_progress=lambda status, destination, depart_date: self._record_item_progress(
+                            status,
+                            self._progress["current_origin"],
+                            destination,
+                            depart_date,
+                        ),
+                    )
+
+                    for group, segment, remaining in planned_routes:
+                        if self._stop_requested:
+                            break
+
                         self._progress["current_origin"] = segment.origin
+                        self._progress["current_destination"] = ""
+                        self._progress["current_date"] = ""
 
                         try:
-                            remaining = await self._filter_already_scraped(
-                                session=session,
-                                route_group_id=group.id,
-                                origin=segment.origin,
-                                destinations=segment.destinations,
-                                dates=dates,
-                            )
-
-                            if not remaining:
-                                self._progress["routes_done"] += 1
-                                continue
-
                             stats = await collector.collect_route_batch(
                                 origin=segment.origin,
                                 destinations=segment.destinations,
@@ -237,9 +287,7 @@ class FlightScheduler:
 
                             total_success += stats["success"]
                             total_errors += stats["errors"]
-
                             self._progress["routes_done"] += 1
-                            self._progress["dates_scraped"] += stats["success"]
 
                         except Exception as exc:
                             total_errors += 1
@@ -448,14 +496,9 @@ class FlightScheduler:
                     if not providers:
                         return stats
 
-                    collector = PriceCollector(
-                        session_factory=self.session_factory,
-                        providers=providers,
-                        on_provider_success=self.provider_registry.report_success,
-                        on_provider_failure=self.provider_registry.report_failure,
-                    )
-
                     dates = target_dates if target_dates else self._group_dates(group)
+                    planned_segments: list[tuple[object, list[date]]] = []
+                    self._reset_progress()
 
                     for segment in iter_group_segments(group):
                         remaining = await self._filter_already_scraped(
@@ -465,6 +508,32 @@ class FlightScheduler:
                             destinations=segment.destinations,
                             dates=dates,
                         )
+
+                        if not remaining:
+                            continue
+
+                        planned_segments.append((segment, remaining))
+                        self._progress["prices_total"] += len(remaining) * len(segment.destinations)
+
+                    self._progress["routes_total"] = len(planned_segments)
+
+                    collector = PriceCollector(
+                        session_factory=self.session_factory,
+                        providers=providers,
+                        on_provider_success=self.provider_registry.report_success,
+                        on_provider_failure=self.provider_registry.report_failure,
+                        on_item_progress=lambda status, destination, depart_date: self._record_item_progress(
+                            status,
+                            self._progress["current_origin"],
+                            destination,
+                            depart_date,
+                        ),
+                    )
+
+                    for segment, remaining in planned_segments:
+                        self._progress["current_origin"] = segment.origin
+                        self._progress["current_destination"] = ""
+                        self._progress["current_date"] = ""
 
                         part = await collector.collect_route_batch(
                             origin=segment.origin,
@@ -482,6 +551,7 @@ class FlightScheduler:
                         stats["success"] += part["success"]
                         stats["errors"] += part["errors"]
                         stats["skipped"] += part["skipped"]
+                        self._progress["routes_done"] += 1
 
                 finally:
                     if lock_acquired:

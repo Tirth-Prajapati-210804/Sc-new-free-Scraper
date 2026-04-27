@@ -60,11 +60,13 @@ class PriceCollector:
         providers: list[FlightProvider],
         on_provider_success: Callable[[str], None] | None = None,
         on_provider_failure: Callable[[str, BaseException], None] | None = None,
+        on_item_progress: Callable[[str, str, date], None] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.providers = providers
         self.on_provider_success = on_provider_success
         self.on_provider_failure = on_provider_failure
+        self.on_item_progress = on_item_progress
 
         self._route_failures: dict[str, int] = {}
         self._route_cooldown: dict[str, int] = {}
@@ -279,6 +281,8 @@ class PriceCollector:
             route_key = self._route_key(origin, dest)
 
             if self._is_route_cooled(route_key):
+                if self.on_item_progress:
+                    self.on_item_progress("skipped", dest, depart_date)
                 return "skipped"
 
             if stop_check and stop_check():
@@ -302,9 +306,13 @@ class PriceCollector:
 
                     if result.cheapest:
                         self._mark_route_success(route_key)
+                        if self.on_item_progress:
+                            self.on_item_progress("success", dest, depart_date)
                         return "success"
 
                     self._mark_route_failure(route_key)
+                    if self.on_item_progress:
+                        self.on_item_progress("skipped", dest, depart_date)
                     return "skipped"
 
                 except Exception as exc:
@@ -318,6 +326,8 @@ class PriceCollector:
                         error=redact_text(str(exc)),
                     )
 
+                    if self.on_item_progress:
+                        self.on_item_progress("error", dest, depart_date)
                     return "error"
 
         tasks = []

@@ -82,7 +82,7 @@ export function DashboardPage() {
   const statusQuery = useQuery({
     queryKey: ["collection-status"],
     queryFn: getCollectionStatus,
-    refetchInterval: (query) => (query.state.data?.is_collecting ? 3_000 : 15_000),
+    refetchInterval: (query) => (query.state.data?.is_collecting ? 1_500 : 15_000),
   });
 
   const stopMut = useMutation({
@@ -135,6 +135,19 @@ export function DashboardPage() {
 
     wasCollecting.current = isCollecting;
   }, [isCollecting, qc, showToast]);
+
+  useEffect(() => {
+    if (!isCollecting) return;
+
+    qc.invalidateQueries({ queryKey: ["stats"] });
+    qc.invalidateQueries({ queryKey: ["route-group-progress"] });
+  }, [
+    isCollecting,
+    qc,
+    statusQuery.data?.progress?.prices_done,
+    statusQuery.data?.progress?.dates_scraped,
+    statusQuery.data?.progress?.current_origin,
+  ]);
 
   const noProvider =
     !healthQuery.isLoading &&
@@ -448,6 +461,7 @@ export function DashboardPage() {
 
 function DashboardGroupRow({ group }: { group: RouteGroup }) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { showToast } = useToast();
   const [downloading, setDownloading] = useState(false);
   const [triggering, setTriggering] = useState(false);
@@ -455,7 +469,7 @@ function DashboardGroupRow({ group }: { group: RouteGroup }) {
   const progressQuery = useQuery({
     queryKey: ["route-group-progress", group.id],
     queryFn: () => getRouteGroupProgress(group.id),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
   });
 
   const progress = progressQuery.data;
@@ -490,6 +504,8 @@ function DashboardGroupRow({ group }: { group: RouteGroup }) {
     try {
       await triggerGroupCollection(group.id);
       showToast("Collection triggered successfully", "success");
+      qc.invalidateQueries({ queryKey: ["collection-status"] });
+      qc.invalidateQueries({ queryKey: ["route-group-progress", group.id] });
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to trigger collection"), "error");
     } finally {

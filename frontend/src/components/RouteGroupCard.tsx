@@ -32,7 +32,7 @@ export function RouteGroupCard({ group }: RouteGroupCardProps) {
   const progressQuery = useQuery({
     queryKey: ["route-group-progress", group.id],
     queryFn: () => getRouteGroupProgress(group.id),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
   });
 
   const progress = progressQuery.data;
@@ -73,6 +73,7 @@ export function RouteGroupCard({ group }: RouteGroupCardProps) {
     try {
       await triggerGroupCollection(group.id);
       showToast("Collection started. Progress will update shortly.", "success");
+      await qc.invalidateQueries({ queryKey: ["collection-status"] });
       await qc.invalidateQueries({ queryKey: ["route-group-progress", group.id] });
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to trigger collection"), "error");
