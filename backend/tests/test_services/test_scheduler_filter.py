@@ -200,10 +200,10 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
     group.days_ahead = 5
     group.special_sheets = [
         {
-            "name": "Leg 2",
-            "origin": "BER",
-            "destination_label": "Tokyo",
-            "destinations": ["NRT", "HND"],
+            "name": "Return Leg",
+            "origin": "BUD",
+            "destination_label": "Toronto",
+            "destinations": ["YYZ"],
             "columns": 4,
         }
     ]
@@ -238,14 +238,12 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
 
     await scheduler.trigger_single_group(group.id)
 
-    assert len(captured) == 2
+    assert len(captured) == 1
     assert captured[0]["origin"] == "YYZ"
     assert captured[0]["destinations"] == ["BER"]
     assert captured[0]["trip_type"] == "multi_city"
-    assert captured[1]["origin"] == "BER"
-    assert captured[1]["destinations"] == ["NRT", "HND"]
-    assert captured[1]["trip_type"] == "one_way"
-    assert captured[1]["nights"] is None
+    assert captured[0]["nights"] == 7
+    assert captured[0]["return_origin"] == "BUD"
 
 
 @pytest.mark.asyncio
@@ -278,8 +276,8 @@ async def test_trigger_single_group_updates_live_progress(
             self.on_item_progress = kw["on_item_progress"]
 
         async def collect_route_batch(self, **kwargs):
-            self.on_item_progress("success", "YYZ", D1)
-            self.on_item_progress("skipped", "YYZ", D2)
+            self.on_item_progress("success", "AMD", "YYZ", D1)
+            self.on_item_progress("skipped", "AMD", "YYZ", D2)
             return {"success": 1, "errors": 0, "skipped": 1}
 
     monkeypatch.setattr(scheduler_module, "PriceCollector", DummyCollector)

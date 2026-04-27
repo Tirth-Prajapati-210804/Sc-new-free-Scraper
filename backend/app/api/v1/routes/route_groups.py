@@ -92,28 +92,29 @@ async def create_group_from_text(
 
     special_sheets = []
     if body.trip_type == "multi_city":
-        if not body.extra_legs:
+        if len(body.extra_legs) != 1:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Add at least one additional leg for a multi-city route group.",
+                detail="Add exactly one return leg for a multi-city route group.",
             )
 
-        for index, leg in enumerate(body.extra_legs, start=2):
-            leg_origins = resolve_required(leg.origin, "origin")
-            leg_destinations = resolve_required(leg.destination, "destination")
-            leg_label = (leg.destination_label or leg.destination).title()
+        leg = body.extra_legs[0]
+        return_origins = resolve_required(leg.origin, "origin")
+        if len(return_origins) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Return leg must resolve to exactly one departure airport for a multi-city route group.",
+            )
 
-            for origin_index, origin in enumerate(leg_origins, start=1):
-                suffix = f" {origin_index}" if len(leg_origins) > 1 else ""
-                special_sheets.append(
-                    {
-                        "name": leg.name or f"Leg {index}{suffix}",
-                        "origin": origin,
-                        "destination_label": leg_label,
-                        "destinations": leg_destinations,
-                        "columns": 4,
-                    }
-                )
+        special_sheets.append(
+            {
+                "name": leg.name or "Return Leg",
+                "origin": return_origins[0],
+                "destination_label": origin_label,
+                "destinations": origins,
+                "columns": 4,
+            }
+        )
 
     create_payload = RouteGroupCreate(
         name=name,

@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   Plane,
-  Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -39,21 +38,16 @@ interface ManualLeg {
   city: string;
 }
 
-interface QuickExtraLeg {
-  from: string;
-  to: string;
-}
-
 interface QuickState {
   from: string;
   to: string;
+  returnFrom: string;
   nights: string;
   days: string;
   currency: string;
   startDate: string;
   endDate: string;
   stops: string;
-  extraLegs: QuickExtraLeg[];
 }
 
 interface ManualState {
@@ -240,9 +234,11 @@ function TripTypeSelector({
 function StopSelector({
   value,
   onChange,
+  tripType,
 }: {
   value: string;
   onChange: (value: string) => void;
+  tripType?: UiTripType;
 }) {
   return (
     <div>
@@ -266,6 +262,9 @@ function StopSelector({
           );
         })}
       </div>
+      {tripType === "multicity" ? (
+        <FieldHint>Multi-city searches use fallback priority: 1 stop, then 2 stop, then direct.</FieldHint>
+      ) : null}
     </div>
   );
 }
@@ -279,6 +278,7 @@ function AdvancedSettings({
   setEndDate,
   stops,
   setStops,
+  tripType,
 }: {
   currency: string;
   setCurrency: (value: string) => void;
@@ -288,6 +288,7 @@ function AdvancedSettings({
   setEndDate: (value: string) => void;
   stops: string;
   setStops: (value: string) => void;
+  tripType?: UiTripType;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -327,7 +328,7 @@ function AdvancedSettings({
               <TextInput type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
-          <StopSelector value={stops} onChange={setStops} />
+          <StopSelector value={stops} onChange={setStops} tripType={tripType} />
         </div>
       ) : null}
     </div>
@@ -471,29 +472,6 @@ function QuickSetupForm({
     }));
   }
 
-  function addExtraLeg() {
-    setState((current) => ({
-      ...current,
-      extraLegs: [...current.extraLegs, { from: "", to: "" }],
-    }));
-  }
-
-  function updateExtraLeg(index: number, next: QuickExtraLeg) {
-    setState((current) => ({
-      ...current,
-      extraLegs: current.extraLegs.map((item, itemIndex) =>
-        itemIndex === index ? next : item,
-      ),
-    }));
-  }
-
-  function removeExtraLeg(index: number) {
-    setState((current) => ({
-      ...current,
-      extraLegs: current.extraLegs.filter((_, itemIndex) => itemIndex !== index),
-    }));
-  }
-
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div>
@@ -556,54 +534,30 @@ function QuickSetupForm({
 
       {tripType === "multicity" ? (
         <div>
-          <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Additional Legs</div>
-          <div className="space-y-3">
-            {state.extraLegs.map((leg, index) => (
-              <div key={index} className="rounded-[10px] border border-slate-200 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-[12px] font-semibold text-brand-700">Leg {index + 2}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeExtraLeg(index)}
-                    className="inline-flex items-center gap-1 text-[11px] text-red-500"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
-                  <div>
-                    <Label>Departure</Label>
-                    <LocationAutocompleteInput
-                      value={leg.from}
-                      onChange={(next) => updateExtraLeg(index, { ...leg, from: next })}
-                      placeholder="e.g. Toronto"
-                    />
-                  </div>
-                  <div className="flex items-center justify-center pb-1">
-                    <ChevronRight className="h-4 w-4 text-slate-300" />
-                  </div>
-                  <div>
-                    <Label>Destination</Label>
-                    <LocationAutocompleteInput
-                      value={leg.to}
-                      onChange={(next) => updateExtraLeg(index, { ...leg, to: next })}
-                      placeholder="e.g. Berlin"
-                    />
-                  </div>
+          <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Return Leg</div>
+          <div className="space-y-3 rounded-[10px] border border-slate-200 bg-white p-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
+              <div>
+                <Label>Return From</Label>
+                <LocationAutocompleteInput
+                  value={state.returnFrom}
+                  onChange={(next) => patch("returnFrom", next)}
+                  placeholder="City name or airport code"
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-center pb-1">
+                <ChevronRight className="h-4 w-4 text-slate-300" />
+              </div>
+              <div>
+                <Label>Return To</Label>
+                <div className="flex h-[46px] items-center rounded-[10px] border border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">
+                  {state.from || "Original outbound origin"}
                 </div>
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={addExtraLeg}
-              className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-indigo-200 bg-indigo-50/75 px-3 py-3 text-sm font-medium text-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              Add Leg
-            </button>
+            </div>
             <div className="text-[11px] text-slate-400">
-              City names or airport codes are resolved automatically for each added leg.
+              This mode searches one open-jaw itinerary total, and the return date shifts automatically by your stay nights.
             </div>
           </div>
         </div>
@@ -643,6 +597,7 @@ function QuickSetupForm({
         setEndDate={(value) => patch("endDate", value)}
         stops={state.stops}
         setStops={(value) => patch("stops", value)}
+        tripType={tripType}
       />
 
       {error ? (
@@ -654,7 +609,7 @@ function QuickSetupForm({
       <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[11px] text-slate-400">
           {tripType === "multicity"
-            ? "Quick setup will create every leg and resolve locations automatically."
+            ? "Quick setup creates one combined open-jaw itinerary total."
             : "You can refine the route group after it is created."}
         </div>
         <div className="flex gap-2 self-end">
@@ -704,24 +659,6 @@ function CustomBuilderForm({
     patch("mainLeg", next);
   }
 
-  function updateExtraLeg(index: number, next: ManualLeg) {
-    patch(
-      "extraLegs",
-      state.extraLegs.map((item, itemIndex) => (itemIndex === index ? next : item)),
-    );
-  }
-
-  function removeExtraLeg(index: number) {
-    patch(
-      "extraLegs",
-      state.extraLegs.filter((_, itemIndex) => itemIndex !== index),
-    );
-  }
-
-  function addExtraLeg() {
-    patch("extraLegs", [...state.extraLegs, emptyLeg()]);
-  }
-
   function swapMainLeg() {
     updateMainLeg({
       ...state.mainLeg,
@@ -732,6 +669,7 @@ function CustomBuilderForm({
 
   const returnFrom = state.mainLeg.to.join(", ") || "Berlin / BER";
   const returnTo = state.mainLeg.from.join(", ") || "Toronto / YYZ";
+  const returnLeg = state.extraLegs[0] ?? emptyLeg();
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -775,30 +713,37 @@ function CustomBuilderForm({
       {state.tripType === "multicity" ? (
         <div>
           <SectionHeading
-            title="Additional Legs"
-            subtitle="Add each onward or return flight as its own leg in sequence."
+            title="Return Leg"
+            subtitle="This mode searches one open-jaw itinerary total, not separate leg prices."
           />
-          <div className="space-y-3">
-            {state.extraLegs.map((leg, index) => (
-              <ManualLegCard
-                key={index}
-                leg={leg}
-                label={`Leg ${index + 2}`}
-                removable={true}
-                onRemove={() => removeExtraLeg(index)}
-                onChange={(next) => updateExtraLeg(index, next)}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={addExtraLeg}
-              className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-indigo-200 bg-indigo-50/75 px-3 py-3 text-sm font-medium text-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              Add Leg
-            </button>
-            <div className="text-[11px] text-slate-400">
-              Each extra leg becomes its own tracked journey in collection and export.
+          <div className="space-y-3 rounded-[10px] border border-slate-200 bg-white p-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_42px_1fr] md:items-start">
+              <div>
+                <Label>Return From Airports</Label>
+                <TagInput
+                  value={returnLeg.from}
+                  onChange={(value) =>
+                    patch("extraLegs", [{ ...returnLeg, from: value, to: state.mainLeg.from }])
+                  }
+                  placeholder="e.g. BUD"
+                  hint="Use the airport or city you return from after the stay."
+                />
+              </div>
+              <div className="flex items-start justify-center pt-[30px]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-400">
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </div>
+              <div>
+                <Label>Return To Airports</Label>
+                <div className="flex min-h-[46px] items-center rounded-[10px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                  {state.mainLeg.from.length ? state.mainLeg.from.join(", ") : "Original outbound origins"}
+                </div>
+                <FieldHint>Auto-linked back to your outbound origin.</FieldHint>
+              </div>
+            </div>
+            <div className="rounded-[10px] bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+              For each departure date, the return date shifts by your stay nights and pricing comes back as one total itinerary fare.
             </div>
           </div>
         </div>
@@ -838,6 +783,7 @@ function CustomBuilderForm({
         setEndDate={(value) => patch("endDate", value)}
         stops={state.stops}
         setStops={(value) => patch("stops", value)}
+        tripType={state.tripType}
       />
 
       {isEditing ? (
@@ -861,7 +807,7 @@ function CustomBuilderForm({
       <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[11px] text-slate-400">
           {state.tripType === "multicity"
-            ? "Separate export sheets are created for each extra leg."
+            ? "Export shows one itinerary total per date with the stop fallback result."
             : "Airport tags accept Enter, comma, or Tab."}
         </div>
         <div className="flex gap-2 self-end">
@@ -898,13 +844,13 @@ export function RouteGroupForm({
   const [quickState, setQuickState] = useState<QuickState>({
     from: "",
     to: "",
+    returnFrom: "",
     nights: "10",
     days: "365",
     currency: "USD",
     startDate: "",
     endDate: "",
     stops: "any",
-    extraLegs: [],
   });
   const [manualState, setManualState] = useState<ManualState>(() => buildInitialManualState(initial));
   const [saving, setSaving] = useState(false);
@@ -919,19 +865,36 @@ export function RouteGroupForm({
     setQuickState({
       from: "",
       to: "",
+      returnFrom: "",
       nights: "10",
       days: "365",
       currency: "USD",
       startDate: "",
       endDate: "",
       stops: "any",
-      extraLegs: [],
     });
     setManualState(buildInitialManualState(initial));
   }, [initial, open]);
 
   useEffect(() => {
     setManualState((current) => ({ ...current, tripType }));
+  }, [tripType]);
+
+  useEffect(() => {
+    if (tripType !== "multicity") return;
+
+    setQuickState((current) => (current.stops === "any" ? { ...current, stops: "prefer-1" } : current));
+    setManualState((current) => {
+      const nextExtraLegs = current.extraLegs.length
+        ? [{ ...current.extraLegs[0], to: current.mainLeg.from }]
+        : [{ ...emptyLeg(), to: current.mainLeg.from }];
+
+      return {
+        ...current,
+        stops: current.stops === "any" ? "prefer-1" : current.stops,
+        extraLegs: nextExtraLegs,
+      };
+    });
   }, [tripType]);
 
   const modalTitle = initial ? "Edit Route Group" : "New Route Group";
@@ -962,10 +925,12 @@ export function RouteGroupForm({
         trip_type: tripTypeToApi(tripType),
         extra_legs:
           tripType === "multicity"
-            ? quickState.extraLegs.map((leg) => ({
-                origin: leg.from.trim(),
-                destination: leg.to.trim(),
-              }))
+            ? [
+                {
+                  origin: quickState.returnFrom.trim(),
+                  destination: quickState.from.trim(),
+                },
+              ]
             : [],
       });
 
@@ -995,23 +960,17 @@ export function RouteGroupForm({
       const specialSheets: SpecialSheet[] = [];
 
       if (manualState.tripType === "multicity") {
-        manualState.extraLegs.forEach((leg, index) => {
-          const origins = normalizeCodes(leg.from);
-          const destinations = normalizeCodes(leg.to);
+        const returnOrigins = normalizeCodes(manualState.extraLegs[0]?.from ?? []);
+        if (!returnOrigins.length) {
+          throw new Error("Add at least one return-from airport for the open-jaw itinerary.");
+        }
 
-          if (!origins.length || !destinations.length) {
-            throw new Error(`Complete all airports for leg ${index + 2}.`);
-          }
-
-          origins.forEach((origin, originIndex) => {
-            specialSheets.push({
-              name: leg.name.trim() || `Leg ${index + 2}${origins.length > 1 ? ` ${originIndex + 1}` : ""}`,
-              origin,
-              destination_label: leg.city.trim() || destinations.join("/"),
-              destinations,
-              columns: 4,
-            });
-          });
+        specialSheets.push({
+          name: "Return Leg",
+          origin: returnOrigins[0],
+          destination_label: manualState.mainLeg.city.trim() || mainOrigins.join("/"),
+          destinations: mainOrigins,
+          columns: 4,
         });
       }
 

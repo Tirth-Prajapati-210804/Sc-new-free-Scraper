@@ -47,6 +47,15 @@ class FlightProvider(Protocol):
         max_stops: int | None = None,
     ) -> list[ProviderResult]: ...
 
+    async def search_multi_city(
+        self,
+        legs: list[dict[str, object]],
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]: ...
+
     def is_configured(self) -> bool: ...
 
     async def close(self) -> None: ...

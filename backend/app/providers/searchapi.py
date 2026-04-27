@@ -12,6 +12,7 @@ Upgraded version with:
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date
 from time import monotonic
 from urllib.parse import quote
@@ -239,6 +240,46 @@ class SearchApiProvider:
 
         return []
 
+    async def search_multi_city(
+        self,
+        legs: list[dict[str, object]],
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        if self._quota_blocked():
+            raise ProviderQuotaExhaustedError(
+                "SearchApi quota previously exhausted. Cooldown active."
+            )
+
+        def _should_retry(exc: BaseException) -> bool:
+            return isinstance(exc, RuntimeError) and not isinstance(
+                exc,
+                (
+                    ProviderQuotaExhaustedError,
+                    ProviderAuthError,
+                ),
+            )
+
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(self._max_retries),
+            wait=wait_exponential_jitter(initial=2, max=20),
+            retry=retry_if_exception_type(RuntimeError)
+            & retry_if_exception(_should_retry),
+            reraise=True,
+        ):
+            with attempt:
+                return await self._search_multi_city_once(
+                    legs=legs,
+                    adults=adults,
+                    cabin=cabin,
+                    currency=currency,
+                    max_stops=max_stops,
+                )
+
+        return []
+
     async def _search_round_trip_once(
         self,
         origin: str,
@@ -423,6 +464,237 @@ class SearchApiProvider:
         )
 
         return results  
+
+    async def _request_json(
+        self,
+        params: dict[str, object],
+    ) -> dict:
+        async with self._semaphore:
+            await self._wait_for_slot()
+
+            try:
+                resp = await self._client.get(
+                    _BASE_URL,
+                    params=params,
+                )
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "SearchApi request timed out."
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise RuntimeError(
+                    "SearchApi request failed."
+                ) from exc
+
+        body_error = _extract_body_error(resp)
+
+        if resp.status_code in (401, 403):
+            raise ProviderAuthError(
+                body_error or "SearchApi authentication failed."
+            )
+
+        if resp.status_code == 429:
+            err_cls = _classify_error_message(body_error or "")
+
+            if err_cls is ProviderQuotaExhaustedError:
+                self._trip_quota_breaker()
+                raise ProviderQuotaExhaustedError(
+                    body_error or "SearchApi quota exhausted."
+                )
+
+            retry_after = _retry_after_seconds(resp.headers)
+            log.warning(
+                "searchapi_rate_limited",
+                retry_after=retry_after,
+            )
+            raise ProviderRateLimitedError(
+                f"SearchApi rate limit hit. Retry after {retry_after}s."
+            )
+
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                f"SearchApi returned status {resp.status_code}."
+            )
+
+        try:
+            data = resp.json()
+        except Exception:
+            raise RuntimeError("SearchApi returned invalid JSON.")
+
+        if isinstance(data, dict) and data.get("error"):
+            err_text = str(data["error"])
+            err_cls = _classify_error_message(err_text)
+
+            if err_cls is ProviderQuotaExhaustedError:
+                self._trip_quota_breaker()
+
+            raise err_cls(err_text)
+
+        return data if isinstance(data, dict) else {}
+
+    def _parse_multi_city_offer(
+        self,
+        offer: dict,
+        currency: str,
+        stop_label: str,
+    ) -> ProviderResult | None:
+        price = offer.get("price")
+        if price is None:
+            return None
+
+        flights = offer.get("flights", [])
+        if not flights:
+            return None
+
+        first_leg = flights[0]
+        last_leg = flights[-1]
+
+        outbound_airline = str(first_leg.get("airline", "")).strip() or (
+            str(first_leg.get("flight_number", "")).split()[0]
+            if first_leg.get("flight_number")
+            else ""
+        )
+        return_airline = str(last_leg.get("airline", "")).strip() or (
+            str(last_leg.get("flight_number", "")).split()[0]
+            if last_leg.get("flight_number")
+            else outbound_airline
+        )
+
+        booking_token = offer.get("booking_token", "")
+        departure_token = offer.get("departure_token", "")
+        deep_link = (
+            f"https://www.google.com/travel/flights?tfs={booking_token}"
+            if booking_token
+            else f"https://www.google.com/flights?hl=en#flt="
+        )
+
+        return ProviderResult(
+            price=float(price),
+            currency=currency,
+            airline=f"{outbound_airline} / {return_airline}",
+            deep_link=deep_link,
+            provider=self.name,
+            stops=0,
+            duration_minutes=int(offer.get("total_duration", 0) or 0),
+            raw_data={
+                "trip_type": "multi_city",
+                "stop_result_label": stop_label,
+                "outbound_airline": outbound_airline,
+                "return_airline": return_airline,
+                "booking_token": booking_token,
+                "departure_token": departure_token,
+                "flights": flights,
+            },
+        )
+
+    def _extract_multi_city_candidates(
+        self,
+        data: dict,
+        currency: str,
+        stop_label: str,
+    ) -> list[ProviderResult]:
+        results: list[ProviderResult] = []
+        for section in ("best_flights", "other_flights"):
+            for offer in data.get(section, []):
+                parsed = self._parse_multi_city_offer(offer, currency, stop_label)
+                if parsed:
+                    parsed.raw_data["section"] = section
+                    results.append(parsed)
+        return sorted(results, key=lambda item: item.price)
+
+    async def _search_multi_city_once(
+        self,
+        legs: list[dict[str, object]],
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        if self._quota_blocked():
+            raise ProviderQuotaExhaustedError(
+                "SearchApi quota cooldown active."
+            )
+
+        if len(legs) != 2:
+            return []
+
+        travel_class_map = {
+            "economy": "economy",
+            "premium_economy": "premium_economy",
+            "business": "business",
+            "first": "first_class",
+        }
+
+        stop_label = (
+            "Direct (1 stop and 2 stop unavailable)"
+            if max_stops == 0
+            else "2 stop (1 stop unavailable)"
+            if max_stops == 2
+            else "1 stop"
+        )
+
+        multi_city_json = json.dumps(
+            [
+                {
+                    "departure_id": str(leg["departure_id"]),
+                    "arrival_id": str(leg["arrival_id"]),
+                    "outbound_date": leg["outbound_date"].isoformat(),
+                }
+                for leg in legs
+            ],
+            separators=(",", ":"),
+        )
+
+        base_params: dict[str, object] = {
+            "engine": "google_flights",
+            "flight_type": "multi_city",
+            "multi_city_json": multi_city_json,
+            "currency": currency,
+            "adults": adults,
+            "travel_class": travel_class_map.get(cabin.lower(), "economy"),
+            "stops": self._STOPS_MAP.get(max_stops, "any"),
+            "api_key": self._api_key,
+        }
+
+        first_leg_data = await self._request_json(base_params)
+        direct_candidates = self._extract_multi_city_candidates(first_leg_data, currency, stop_label)
+        finalized = [candidate for candidate in direct_candidates if candidate.raw_data.get("booking_token")]
+        if finalized and any(len(candidate.raw_data.get("flights", [])) >= 2 for candidate in finalized):
+            return finalized
+
+        selected_candidates: list[ProviderResult] = []
+        for candidate in direct_candidates[:5]:
+            departure_token = str(candidate.raw_data.get("departure_token") or "").strip()
+            if not departure_token:
+                continue
+
+            next_leg_data = await self._request_json(
+                {
+                    **base_params,
+                    "departure_token": departure_token,
+                }
+            )
+            second_leg_candidates = self._extract_multi_city_candidates(next_leg_data, currency, stop_label)
+            selected_candidates.extend(second_leg_candidates[:10])
+
+        if not selected_candidates:
+            return []
+
+        selected_candidates.sort(key=lambda item: item.price)
+        cheapest = selected_candidates[0]
+        booking_token = str(cheapest.raw_data.get("booking_token") or "").strip()
+        if booking_token:
+            final_data = await self._request_json(
+                {
+                    **base_params,
+                    "booking_token": booking_token,
+                }
+            )
+            final_candidates = self._extract_multi_city_candidates(final_data, currency, stop_label)
+            if final_candidates:
+                return final_candidates
+
+        return [cheapest]
 
     async def _search_one_way_once(
         self,
@@ -726,6 +998,24 @@ class SearchApiPoolProvider:
                 destination=destination,
                 depart_date=depart_date,
                 return_date=return_date,
+                adults=adults,
+                cabin=cabin,
+                currency=currency,
+                max_stops=max_stops,
+            )
+        )
+
+    async def search_multi_city(
+        self,
+        legs: list[dict[str, object]],
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        return await self._search_with_failover(
+            lambda provider: provider.search_multi_city(
+                legs=legs,
                 adults=adults,
                 cabin=cabin,
                 currency=currency,

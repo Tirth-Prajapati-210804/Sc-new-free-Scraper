@@ -254,9 +254,9 @@ class FlightScheduler:
                         providers=providers,
                         on_provider_success=self.provider_registry.report_success,
                         on_provider_failure=self.provider_registry.report_failure,
-                        on_item_progress=lambda status, destination, depart_date: self._record_item_progress(
+                        on_item_progress=lambda status, origin, destination, depart_date: self._record_item_progress(
                             status,
-                            self._progress["current_origin"],
+                            origin,
                             destination,
                             depart_date,
                         ),
@@ -283,6 +283,7 @@ class FlightScheduler:
                                 max_stops=group.max_stops,
                                 trip_type=segment.trip_type,
                                 nights=segment.nights,
+                                return_origin=segment.return_origin,
                             )
 
                             total_success += stats["success"]
@@ -522,9 +523,9 @@ class FlightScheduler:
                         providers=providers,
                         on_provider_success=self.provider_registry.report_success,
                         on_provider_failure=self.provider_registry.report_failure,
-                        on_item_progress=lambda status, destination, depart_date: self._record_item_progress(
+                        on_item_progress=lambda status, origin, destination, depart_date: self._record_item_progress(
                             status,
-                            self._progress["current_origin"],
+                            origin,
                             destination,
                             depart_date,
                         ),
@@ -546,6 +547,7 @@ class FlightScheduler:
                             max_stops=group.max_stops,
                             trip_type=segment.trip_type,
                             nights=segment.nights,
+                            return_origin=segment.return_origin,
                         )
 
                         stats["success"] += part["success"]

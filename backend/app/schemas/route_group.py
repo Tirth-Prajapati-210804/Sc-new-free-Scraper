@@ -112,6 +112,11 @@ class RouteGroupCreate(BaseModel):
     def validate_dates(self) -> "RouteGroupCreate":
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.trip_type == "multi_city":
+            if not self.special_sheets:
+                raise ValueError("multi_city requires a return leg configuration")
+            if len(self.special_sheets) != 1:
+                raise ValueError("multi_city supports exactly one return-leg configuration")
         return self
 
 
@@ -169,6 +174,9 @@ class RouteGroupUpdate(BaseModel):
     def validate_dates(self) -> "RouteGroupUpdate":
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.trip_type == "multi_city" and self.special_sheets is not None:
+            if len(self.special_sheets) != 1:
+                raise ValueError("multi_city supports exactly one return-leg configuration")
         return self
 
 

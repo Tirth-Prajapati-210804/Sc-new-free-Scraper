@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy import text
@@ -41,6 +41,8 @@ class CollectionResult:
     destination: str
     depart_date: date
     cheapest: ProviderResult | None
+    return_date: date | None = None
+    stop_label: str | None = None
     provider_results: dict[str, list[ProviderResult]] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
 
@@ -60,7 +62,7 @@ class PriceCollector:
         providers: list[FlightProvider],
         on_provider_success: Callable[[str], None] | None = None,
         on_provider_failure: Callable[[str, BaseException], None] | None = None,
-        on_item_progress: Callable[[str, str, date], None] | None = None,
+        on_item_progress: Callable[[str, str, str, date], None] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.providers = providers
@@ -133,11 +135,13 @@ class PriceCollector:
         max_stops: int | None = None,
         trip_type: str = "one_way",
         nights: int | None = None,
+        return_origin: str | None = None,
     ) -> CollectionResult:
 
         all_results: list[ProviderResult] = []
         provider_results: dict[str, list[ProviderResult]] = {}  
         errors: dict[str, str] = {}
+        return_date: date | None = None
 
         async with self.session_factory() as session:
             for provider in self.providers:
@@ -146,11 +150,25 @@ class PriceCollector:
                 try:
                     api_max_stops = 2 if max_stops == 3 else max_stops
 
-                    if trip_type == "round_trip":
-                        stay_nights = nights or 3
-                        return_date = depart_date.fromordinal(
-                            depart_date.toordinal() + stay_nights
+                    if trip_type == "multi_city":
+                        stay_nights = nights or 1
+                        if not return_origin:
+                            raise RuntimeError("multi_city collection requires a return origin.")
+
+                        return_date = depart_date + timedelta(days=stay_nights)
+                        results, stop_label = await self._search_multi_city_with_fallback(
+                            provider=provider,
+                            origin=origin,
+                            destination=destination,
+                            depart_date=depart_date,
+                            return_origin=return_origin,
+                            return_date=return_date,
+                            currency=currency,
                         )
+
+                    elif trip_type == "round_trip":
+                        stay_nights = nights or 3
+                        return_date = depart_date + timedelta(days=stay_nights)
 
                         results = await provider.search_round_trip(
                             origin=origin,
@@ -160,8 +178,10 @@ class PriceCollector:
                             currency=currency,
                             max_stops=api_max_stops,
                         )
+                        stop_label = None
 
                     else:
+                        return_date = None
                         results = await provider.search_one_way(
                             origin=origin,
                             destination=destination,
@@ -169,6 +189,7 @@ class PriceCollector:
                             currency=currency,
                             max_stops=api_max_stops,
                         )
+                        stop_label = None
 
                     elapsed_ms = int((time.monotonic() - start) * 1000)
 
@@ -245,6 +266,12 @@ class PriceCollector:
             destination=destination,
             depart_date=depart_date,
             cheapest=cheapest,
+            return_date=return_date if trip_type == "multi_city" else None,
+            stop_label=(
+                str(cheapest.raw_data.get("stop_result_label"))
+                if cheapest and isinstance(cheapest.raw_data, dict)
+                else None
+            ),
             provider_results=provider_results,
             errors=errors,
         )
@@ -266,6 +293,7 @@ class PriceCollector:
         max_stops: int | None = None,
         trip_type: str = "one_way",
         nights: int | None = None,
+        return_origin: str | None = None,
     ) -> dict[str, int]:
 
         stats = {
@@ -302,17 +330,18 @@ class PriceCollector:
                         max_stops=max_stops,
                         trip_type=trip_type,
                         nights=nights,
+                        return_origin=return_origin,
                     )
 
                     if result.cheapest:
                         self._mark_route_success(route_key)
                         if self.on_item_progress:
-                            self.on_item_progress("success", dest, depart_date)
+                            self.on_item_progress("success", origin, dest, depart_date)
                         return "success"
 
                     self._mark_route_failure(route_key)
                     if self.on_item_progress:
-                        self.on_item_progress("skipped", dest, depart_date)
+                        self.on_item_progress("skipped", origin, dest, depart_date)
                     return "skipped"
 
                 except Exception as exc:
@@ -327,7 +356,7 @@ class PriceCollector:
                     )
 
                     if self.on_item_progress:
-                        self.on_item_progress("error", dest, depart_date)
+                        self.on_item_progress("error", origin, dest, depart_date)
                     return "error"
 
         tasks = []
@@ -359,6 +388,53 @@ class PriceCollector:
                 await asyncio.sleep(delay_seconds)
 
         return stats
+
+    async def _search_multi_city_with_fallback(
+        self,
+        provider: FlightProvider,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        return_origin: str,
+        return_date: date,
+        currency: str,
+    ) -> tuple[list[ProviderResult], str | None]:
+        fallback_order = (
+            (1, "1 stop"),
+            (2, "2 stop (1 stop unavailable)"),
+            (0, "Direct (1 stop and 2 stop unavailable)"),
+        )
+
+        for max_stops, default_label in fallback_order:
+            results = await provider.search_multi_city(
+                legs=[
+                    {
+                        "departure_id": origin,
+                        "arrival_id": destination,
+                        "outbound_date": depart_date,
+                    },
+                    {
+                        "departure_id": return_origin,
+                        "arrival_id": origin,
+                        "outbound_date": return_date,
+                    },
+                ],
+                currency=currency,
+                max_stops=max_stops,
+            )
+
+            if results:
+                for result in results:
+                    if not isinstance(result.raw_data, dict):
+                        result.raw_data = {}
+                    result.raw_data.setdefault("trip_type", "multi_city")
+                    result.raw_data.setdefault("return_origin", return_origin)
+                    result.raw_data.setdefault("return_destination", origin)
+                    result.raw_data.setdefault("return_date", return_date.isoformat())
+                    result.raw_data.setdefault("stop_result_label", default_label)
+                return results, str(results[0].raw_data.get("stop_result_label") or default_label)
+
+        return [], None
 
     # --------------------------------------------------
     # DB HELPERS
@@ -474,6 +550,12 @@ class PriceCollector:
                     provider=result.provider or "unknown",
                     deep_link=result.deep_link[:2048] if result.deep_link else None,
                     stops=result.stops,
+                    stop_label=(
+                        str(result.raw_data.get("stop_result_label"))
+                        if isinstance(result.raw_data, dict) and result.raw_data.get("stop_result_label")
+                        else None
+                    ),
                     duration_minutes=result.duration_minutes,
+                    itinerary_data=result.raw_data if isinstance(result.raw_data, dict) else None,
                 )
             )

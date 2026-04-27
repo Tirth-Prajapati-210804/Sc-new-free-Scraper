@@ -111,5 +111,69 @@ class MockProvider:
             for o in outbound
         ]
 
+    async def search_multi_city(
+        self,
+        legs: list[dict[str, object]],
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        if len(legs) != 2:
+            return []
+
+        first = legs[0]
+        second = legs[1]
+        outbound = await self.search_one_way(
+            str(first["departure_id"]),
+            str(first["arrival_id"]),
+            first["outbound_date"],
+            adults,
+            cabin,
+            currency,
+            max_stops,
+        )
+        inbound = await self.search_one_way(
+            str(second["departure_id"]),
+            str(second["arrival_id"]),
+            second["outbound_date"],
+            adults,
+            cabin,
+            currency,
+            max_stops,
+        )
+        if not outbound or not inbound:
+            return []
+
+        cheapest_out = outbound[0]
+        cheapest_in = inbound[0]
+        stop_label = (
+            "Direct (1 stop and 2 stop unavailable)"
+            if max_stops == 0
+            else "2 stop (1 stop unavailable)"
+            if max_stops == 2
+            else "1 stop"
+        )
+        return [
+            ProviderResult(
+                price=cheapest_out.price + cheapest_in.price,
+                currency=currency,
+                airline=f"{cheapest_out.airline} / {cheapest_in.airline}",
+                deep_link="",
+                provider=self.name,
+                stops=max(cheapest_out.stops, cheapest_in.stops),
+                duration_minutes=cheapest_out.duration_minutes + cheapest_in.duration_minutes,
+                raw_data={
+                    "trip_type": "multi_city",
+                    "stop_result_label": stop_label,
+                    "outbound_airline": cheapest_out.airline,
+                    "return_airline": cheapest_in.airline,
+                    "return_origin": str(second["departure_id"]),
+                    "return_destination": str(second["arrival_id"]),
+                    "return_date": second["outbound_date"].isoformat(),
+                },
+            )
+        ]
+
     async def close(self) -> None:
         pass

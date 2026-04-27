@@ -44,7 +44,7 @@ export function RouteGroupCard({ group }: RouteGroupCardProps) {
         : "One Way";
   const stayLabel =
     group.trip_type === "multi_city"
-      ? `${(group.special_sheets?.length || 0) + 1} journeys`
+      ? `${group.nights} nights`
       : group.trip_type === "round_trip"
         ? `${group.nights} nights`
         : "-";
