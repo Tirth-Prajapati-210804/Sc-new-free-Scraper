@@ -19,6 +19,7 @@ _MAIN_HEADERS = [
     "Arrival Airport",
     "Nights",
     "Airline",
+    "Stop Result",
     "Flight Price",
 ]
 
@@ -128,6 +129,11 @@ def export_route_group(
                 ws.cell(
                     row=row_idx,
                     column=6,
+                    value=result.stop_label or "",
+                )
+                ws.cell(
+                    row=row_idx,
+                    column=7,
                     value=int(round(float(result.price))),
                 )
 
@@ -176,9 +182,10 @@ def export_route_group(
                 ws.cell(row=row_idx, column=4, value=route_group.nights)
                 if result:
                     ws.cell(row=row_idx, column=5, value=result.airline)
+                    ws.cell(row=row_idx, column=6, value=result.stop_label or "")
                     ws.cell(
                         row=row_idx,
-                        column=6,
+                        column=7,
                         value=int(round(float(result.price))),
                     )
             else:

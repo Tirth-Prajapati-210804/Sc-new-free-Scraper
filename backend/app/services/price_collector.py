@@ -148,8 +148,6 @@ class PriceCollector:
                 start = time.monotonic()
 
                 try:
-                    api_max_stops = 2 if max_stops == 3 else max_stops
-
                     if trip_type == "multi_city":
                         stay_nights = nights or 1
                         if not return_origin:
@@ -169,27 +167,45 @@ class PriceCollector:
                     elif trip_type == "round_trip":
                         stay_nights = nights or 3
                         return_date = depart_date + timedelta(days=stay_nights)
-
-                        results = await provider.search_round_trip(
-                            origin=origin,
-                            destination=destination,
-                            depart_date=depart_date,
-                            return_date=return_date,
-                            currency=currency,
-                            max_stops=api_max_stops,
-                        )
-                        stop_label = None
+                        if max_stops == 3:
+                            results, stop_label = await self._search_round_trip_with_fallback(
+                                provider=provider,
+                                origin=origin,
+                                destination=destination,
+                                depart_date=depart_date,
+                                return_date=return_date,
+                                currency=currency,
+                            )
+                        else:
+                            results = await provider.search_round_trip(
+                                origin=origin,
+                                destination=destination,
+                                depart_date=depart_date,
+                                return_date=return_date,
+                                currency=currency,
+                                max_stops=max_stops,
+                            )
+                            stop_label = None
 
                     else:
                         return_date = None
-                        results = await provider.search_one_way(
-                            origin=origin,
-                            destination=destination,
-                            depart_date=depart_date,
-                            currency=currency,
-                            max_stops=api_max_stops,
-                        )
-                        stop_label = None
+                        if max_stops == 3:
+                            results, stop_label = await self._search_one_way_with_fallback(
+                                provider=provider,
+                                origin=origin,
+                                destination=destination,
+                                depart_date=depart_date,
+                                currency=currency,
+                            )
+                        else:
+                            results = await provider.search_one_way(
+                                origin=origin,
+                                destination=destination,
+                                depart_date=depart_date,
+                                currency=currency,
+                                max_stops=max_stops,
+                            )
+                            stop_label = None
 
                     elapsed_ms = int((time.monotonic() - start) * 1000)
 
@@ -434,6 +450,66 @@ class PriceCollector:
                     result.raw_data.setdefault("stop_result_label", default_label)
                 return results, str(results[0].raw_data.get("stop_result_label") or default_label)
 
+        return [], None
+
+    async def _search_one_way_with_fallback(
+        self,
+        provider: FlightProvider,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        currency: str,
+    ) -> tuple[list[ProviderResult], str | None]:
+        fallback_order = (
+            (1, "1 stop"),
+            (2, "2 stop (1 stop unavailable)"),
+            (0, "Direct (1 stop and 2 stop unavailable)"),
+        )
+        for max_stops, default_label in fallback_order:
+            results = await provider.search_one_way(
+                origin=origin,
+                destination=destination,
+                depart_date=depart_date,
+                currency=currency,
+                max_stops=max_stops,
+            )
+            if results:
+                for result in results:
+                    if not isinstance(result.raw_data, dict):
+                        result.raw_data = {}
+                    result.raw_data.setdefault("stop_result_label", default_label)
+                return results, str(results[0].raw_data.get("stop_result_label") or default_label)
+        return [], None
+
+    async def _search_round_trip_with_fallback(
+        self,
+        provider: FlightProvider,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        return_date: date,
+        currency: str,
+    ) -> tuple[list[ProviderResult], str | None]:
+        fallback_order = (
+            (1, "1 stop"),
+            (2, "2 stop (1 stop unavailable)"),
+            (0, "Direct (1 stop and 2 stop unavailable)"),
+        )
+        for max_stops, default_label in fallback_order:
+            results = await provider.search_round_trip(
+                origin=origin,
+                destination=destination,
+                depart_date=depart_date,
+                return_date=return_date,
+                currency=currency,
+                max_stops=max_stops,
+            )
+            if results:
+                for result in results:
+                    if not isinstance(result.raw_data, dict):
+                        result.raw_data = {}
+                    result.raw_data.setdefault("stop_result_label", default_label)
+                return results, str(results[0].raw_data.get("stop_result_label") or default_label)
         return [], None
 
     # --------------------------------------------------

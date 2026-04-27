@@ -43,6 +43,41 @@ class DummyMultiCityProvider:
         ]
 
 
+class DummyOneWayProvider:
+    name = "dummy-one-way"
+
+    def __init__(self) -> None:
+        self.calls: list[int | None] = []
+
+    async def search_one_way(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        adults: int = 1,
+        cabin: str = "economy",
+        currency: str = "USD",
+        max_stops: int | None = None,
+    ) -> list[ProviderResult]:
+        self.calls.append(max_stops)
+        if max_stops == 1:
+            return []
+        if max_stops == 2:
+            return [
+                ProviderResult(
+                    price=540.0,
+                    currency=currency,
+                    airline="LOT",
+                    deep_link="",
+                    provider=self.name,
+                    stops=2,
+                    duration_minutes=700,
+                    raw_data={},
+                )
+            ]
+        return []
+
+
 @pytest.mark.asyncio
 async def test_multi_city_fallback_prefers_1_then_2_then_direct() -> None:
     collector = PriceCollector(
@@ -68,6 +103,29 @@ async def test_multi_city_fallback_prefers_1_then_2_then_direct() -> None:
     assert results[0].raw_data["return_origin"] == "BUD"
     assert results[0].raw_data["return_destination"] == "YYZ"
     assert results[0].raw_data["return_date"] == "2026-05-31"
+
+
+@pytest.mark.asyncio
+async def test_one_way_fallback_prefers_1_then_2_then_direct() -> None:
+    collector = PriceCollector(
+        session_factory=SimpleNamespace(),
+        providers=[],
+    )
+    provider = DummyOneWayProvider()
+
+    results, stop_label = await collector._search_one_way_with_fallback(
+        provider=provider,
+        origin="YYZ",
+        destination="BER",
+        depart_date=date(2026, 5, 20),
+        currency="CAD",
+    )
+
+    assert provider.calls == [1, 2]
+    assert len(results) == 1
+    assert results[0].price == 540.0
+    assert stop_label == "2 stop (1 stop unavailable)"
+    assert results[0].raw_data["stop_result_label"] == "2 stop (1 stop unavailable)"
 
 
 def test_multi_city_export_uses_itinerary_sheet_shape() -> None:
