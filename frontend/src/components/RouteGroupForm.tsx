@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "./ui/Button";
 import { LocationAutocompleteInput } from "./ui/LocationAutocompleteInput";
@@ -155,21 +155,36 @@ function buildInitialManualState(initial?: RouteGroup | null): ManualState {
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <label className="mb-1.5 block text-xs font-medium text-slate-500">
+    <label className="mb-2 block text-[12px] font-medium text-slate-500">
       {children}
     </label>
   );
 }
 
 function FieldHint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1.5 text-xs text-slate-400">{children}</p>;
+  return <p className="mt-2 text-[11px] text-slate-400">{children}</p>;
+}
+
+function SectionHeading({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="mb-2.5">
+      <div className="text-[12px] font-semibold text-slate-600">{title}</div>
+      {subtitle ? <div className="mt-1 text-[11px] text-slate-400">{subtitle}</div> : null}
+    </div>
+  );
 }
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-10 w-full rounded-[10px] border-[1.5px] border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 ${props.className ?? ""}`}
+      className={`h-[46px] w-full rounded-[10px] border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 ${props.className ?? ""}`}
     />
   );
 }
@@ -179,7 +194,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <div className="relative">
       <select
         {...props}
-        className={`h-10 w-full appearance-none rounded-[10px] border-[1.5px] border-slate-200 bg-white px-3 pr-8 text-sm text-slate-900 outline-none transition focus:border-brand-500 ${props.className ?? ""}`}
+        className={`h-[46px] w-full appearance-none rounded-[10px] border border-slate-200 bg-white px-4 pr-9 text-sm text-slate-900 outline-none transition focus:border-brand-500 ${props.className ?? ""}`}
       />
       <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
     </div>
@@ -194,9 +209,9 @@ function TripTypeSelector({
   onChange: (value: UiTripType) => void;
 }) {
   return (
-    <div className="mb-5">
-      <div className="mb-2.5 text-xs font-semibold text-slate-600">Trip Type</div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+    <div className="mb-6">
+      <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Trip Type</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {TRIP_TYPES.map((type) => {
           const active = tripType === type.id;
           return (
@@ -204,16 +219,16 @@ function TripTypeSelector({
               key={type.id}
               type="button"
               onClick={() => onChange(type.id)}
-              className={`rounded-[10px] border-[1.5px] px-3 py-3 text-left transition ${
+              className={`rounded-[10px] border px-4 py-4 text-left transition ${
                 active
                   ? "border-brand-500 bg-indigo-50"
                   : "border-slate-200 bg-white hover:border-slate-300"
               }`}
             >
-              <div className={`text-sm font-semibold ${active ? "text-brand-700" : "text-slate-900"}`}>
+              <div className={`text-[15px] font-semibold ${active ? "text-brand-700" : "text-slate-900"}`}>
                 {type.label}
               </div>
-              <div className="mt-1 text-xs text-slate-400">{type.description}</div>
+              <div className="mt-1 text-[12px] text-slate-400">{type.description}</div>
             </button>
           );
         })}
@@ -231,7 +246,7 @@ function StopSelector({
 }) {
   return (
     <div>
-      <div className="mb-2 text-xs font-medium text-slate-500">Connection Filter</div>
+      <div className="mb-2 text-[12px] font-medium text-slate-500">Connection Filter</div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {STOP_OPTIONS.map((option) => {
           const active = value === option.id;
@@ -240,7 +255,7 @@ function StopSelector({
               key={option.id}
               type="button"
               onClick={() => onChange(option.id)}
-              className={`rounded-[8px] border-[1.5px] px-2 py-2 text-xs font-medium transition ${
+              className={`rounded-[8px] border px-2 py-2.5 text-[12px] font-medium transition ${
                 active
                   ? "border-brand-500 bg-indigo-50 text-brand-700"
                   : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
@@ -277,17 +292,21 @@ function AdvancedSettings({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-slate-200">
+    <div className="overflow-hidden rounded-[10px] border border-slate-200 bg-white">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-600"
+        className="flex w-full items-center justify-between px-4 py-[11px] text-left text-sm font-medium text-slate-600"
       >
         <span>Advanced Settings</span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-slate-400 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
       </button>
       {open ? (
-        <div className="space-y-4 border-t border-slate-200 px-4 pb-4 pt-2">
+        <div className="space-y-4 border-t border-slate-200 px-4 pb-4 pt-3">
           <div className="grid gap-3 md:grid-cols-3">
             <div>
               <Label>Currency</Label>
@@ -319,12 +338,16 @@ function ManualLegCard({
   leg,
   label,
   removable,
+  swapEnabled,
+  onSwap,
   onRemove,
   onChange,
 }: {
   leg: ManualLeg;
   label: string;
   removable: boolean;
+  swapEnabled?: boolean;
+  onSwap?: () => void;
   onRemove?: () => void;
   onChange: (next: ManualLeg) => void;
 }) {
@@ -333,19 +356,19 @@ function ManualLegCard({
   }
 
   return (
-    <div className="overflow-hidden rounded-[10px] border-[1.5px] border-slate-200">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-brand-700">
+    <div className="overflow-hidden rounded-[10px] border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full border border-indigo-100 bg-white text-brand-700">
             <Plane className="h-3.5 w-3.5" />
           </div>
-          <span className="text-xs font-semibold text-brand-700">{label}</span>
+          <span className="text-sm font-semibold text-slate-800">{label}</span>
         </div>
         {removable ? (
           <button
             type="button"
             onClick={onRemove}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-red-500 transition hover:bg-red-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Remove
@@ -353,21 +376,32 @@ function ManualLegCard({
         ) : null}
       </div>
 
-      <div className="space-y-3 p-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
+      <div className="space-y-3.5 p-4">
+        <div className="grid gap-4 md:grid-cols-[1fr_42px_1fr] md:items-start">
           <div>
             <Label>Departure Airports</Label>
             <TagInput
               value={leg.from}
               onChange={(value) => patch("from", value)}
               placeholder="e.g. YYZ, YVR"
-              hint="Separate codes with Enter or comma"
+              hint="Press Enter, comma, or choose a suggestion."
             />
           </div>
-          <div className="flex items-center justify-center pb-6">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400">
-              <ChevronRight className="h-4 w-4" />
-            </div>
+          <div className="flex items-start justify-center pt-[30px]">
+            {swapEnabled ? (
+              <button
+                type="button"
+                onClick={onSwap}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50"
+                aria-label="Swap departure and arrival airports"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-400">
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            )}
           </div>
           <div>
             <Label>Arrival Airports</Label>
@@ -375,27 +409,32 @@ function ManualLegCard({
               value={leg.to}
               onChange={(value) => patch("to", value)}
               placeholder="e.g. BER, MUC"
-              hint="Separate codes with Enter or comma"
+              hint="Press Enter, comma, or choose a suggestion."
             />
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <Label>Route Name</Label>
-            <TextInput
-              value={leg.name}
-              onChange={(e) => patch("name", e.target.value)}
-              placeholder="e.g. Canada to Berlin"
-            />
+        <div className="border-t border-slate-100 pt-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Optional Labels
           </div>
-          <div>
-            <Label>Destination Label</Label>
-            <TextInput
-              value={leg.city}
-              onChange={(e) => patch("city", e.target.value)}
-              placeholder="e.g. Berlin"
-            />
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <Label>Route Name</Label>
+              <TextInput
+                value={leg.name}
+                onChange={(e) => patch("name", e.target.value)}
+                placeholder="Optional, e.g. Canada to Berlin"
+              />
+            </div>
+            <div>
+              <Label>Destination Label</Label>
+              <TextInput
+                value={leg.city}
+                onChange={(e) => patch("city", e.target.value)}
+                placeholder="Optional, e.g. Berlin"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -456,9 +495,9 @@ function QuickSetupForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-6">
       <div>
-        <div className="mb-2.5 text-xs font-semibold text-slate-600">
+        <div className="mb-2.5 text-[12px] font-semibold text-slate-600">
           {tripType === "oneway" ? "Flight" : "Outbound Leg"}
         </div>
         <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
@@ -475,7 +514,7 @@ function QuickSetupForm({
             <button
               type="button"
               onClick={swapQuickRoute}
-              className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50"
               aria-label="Swap departure and destination"
             >
               <ArrowLeftRight className="h-4 w-4" />
@@ -494,22 +533,22 @@ function QuickSetupForm({
       </div>
 
       {tripType === "roundtrip" ? (
-        <div className="rounded-[10px] border-[1.5px] border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-4">
           <div className="mb-3 flex items-center gap-2">
             <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-xs font-semibold text-slate-600">Return Leg</span>
-            <span className="text-xs text-slate-400">Auto-generated from outbound</span>
+            <span className="text-[12px] font-semibold text-slate-600">Return Leg</span>
+            <span className="text-[12px] text-slate-400">Auto-generated from outbound</span>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            <div className="rounded-[8px] border-[1.5px] border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-400">
+            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-400">
               {state.to || "Berlin / BER"}
             </div>
             <ChevronRight className="mx-auto h-4 w-4 text-slate-300" />
-            <div className="rounded-[8px] border-[1.5px] border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-400">
+            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-400">
               {state.from || "Toronto / YYZ"}
             </div>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-2 text-[11px] text-slate-400">
             Return date is offset from departure by your nights at destination.
           </div>
         </div>
@@ -517,16 +556,16 @@ function QuickSetupForm({
 
       {tripType === "multicity" ? (
         <div>
-          <div className="mb-2.5 text-xs font-semibold text-slate-600">Additional Legs</div>
+          <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Additional Legs</div>
           <div className="space-y-3">
             {state.extraLegs.map((leg, index) => (
-              <div key={index} className="rounded-[10px] border-[1.5px] border-slate-200 p-4">
+              <div key={index} className="rounded-[10px] border border-slate-200 p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-brand-700">Leg {index + 2}</span>
+                  <span className="text-[12px] font-semibold text-brand-700">Leg {index + 2}</span>
                   <button
                     type="button"
                     onClick={() => removeExtraLeg(index)}
-                    className="inline-flex items-center gap-1 text-xs text-red-500"
+                    className="inline-flex items-center gap-1 text-[11px] text-red-500"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Remove
@@ -558,12 +597,12 @@ function QuickSetupForm({
             <button
               type="button"
               onClick={addExtraLeg}
-              className="flex w-full items-center justify-center gap-2 rounded-[8px] border-[1.5px] border-dashed border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-brand-700"
+              className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-indigo-200 bg-indigo-50/75 px-3 py-3 text-sm font-medium text-brand-700"
             >
               <Plus className="h-4 w-4" />
               Add Leg
             </button>
-            <div className="text-xs text-slate-400">
+            <div className="text-[11px] text-slate-400">
               City names or airport codes are resolved automatically for each added leg.
             </div>
           </div>
@@ -571,7 +610,7 @@ function QuickSetupForm({
       ) : null}
 
       <div>
-        <div className="mb-2.5 text-xs font-semibold text-slate-600">Tracking Window</div>
+        <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Tracking Window</div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <Label>Nights at Destination</Label>
@@ -612,17 +651,26 @@ function QuickSetupForm({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-        <div className="text-xs text-slate-400">
+      <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-[11px] text-slate-400">
           {tripType === "multicity"
             ? "Quick setup will create every leg and resolve locations automatically."
             : "You can refine the route group after it is created."}
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        <div className="flex gap-2 self-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
+          >
             Cancel
           </Button>
-          <Button type="submit" loading={saving}>
+          <Button
+            type="submit"
+            loading={saving}
+            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
+          >
             Create Group
           </Button>
         </div>
@@ -674,40 +722,51 @@ function CustomBuilderForm({
     patch("extraLegs", [...state.extraLegs, emptyLeg()]);
   }
 
+  function swapMainLeg() {
+    updateMainLeg({
+      ...state.mainLeg,
+      from: state.mainLeg.to,
+      to: state.mainLeg.from,
+    });
+  }
+
   const returnFrom = state.mainLeg.to.join(", ") || "Berlin / BER";
   const returnTo = state.mainLeg.from.join(", ") || "Toronto / YYZ";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-6">
       <div>
-        <div className="mb-2.5 text-xs font-semibold text-slate-600">
-          {state.tripType === "oneway" ? "Flight Leg" : "Outbound Leg"}
-        </div>
+        <SectionHeading
+          title={state.tripType === "oneway" ? "Flight Leg" : "Outbound Leg"}
+          subtitle="Use airport codes directly for exact route control."
+        />
         <ManualLegCard
           leg={state.mainLeg}
           label={state.tripType === "oneway" ? "Flight" : "Outbound"}
           removable={false}
+          swapEnabled={true}
+          onSwap={swapMainLeg}
           onChange={updateMainLeg}
         />
       </div>
 
       {state.tripType === "roundtrip" ? (
-        <div className="rounded-[10px] border-[1.5px] border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-4">
           <div className="mb-3 flex items-center gap-2">
             <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-xs font-semibold text-slate-600">Return Leg</span>
-            <span className="text-xs text-slate-400">Auto-generated from outbound</span>
+            <span className="text-[12px] font-semibold text-slate-600">Return Leg</span>
+            <span className="text-[12px] text-slate-400">Auto-generated from outbound</span>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            <div className="rounded-[8px] border-[1.5px] border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">
+            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500">
               {returnFrom}
             </div>
             <ChevronRight className="mx-auto h-4 w-4 text-slate-300" />
-            <div className="rounded-[8px] border-[1.5px] border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">
+            <div className="rounded-[10px] border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500">
               {returnTo}
             </div>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-2 text-[11px] text-slate-400">
             Return date is offset from departure by your nights at destination.
           </div>
         </div>
@@ -715,7 +774,10 @@ function CustomBuilderForm({
 
       {state.tripType === "multicity" ? (
         <div>
-          <div className="mb-2.5 text-xs font-semibold text-slate-600">Additional Legs</div>
+          <SectionHeading
+            title="Additional Legs"
+            subtitle="Add each onward or return flight as its own leg in sequence."
+          />
           <div className="space-y-3">
             {state.extraLegs.map((leg, index) => (
               <ManualLegCard
@@ -730,17 +792,20 @@ function CustomBuilderForm({
             <button
               type="button"
               onClick={addExtraLeg}
-              className="flex w-full items-center justify-center gap-2 rounded-[8px] border-[1.5px] border-dashed border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-brand-700"
+              className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-indigo-200 bg-indigo-50/75 px-3 py-3 text-sm font-medium text-brand-700"
             >
               <Plus className="h-4 w-4" />
               Add Leg
             </button>
+            <div className="text-[11px] text-slate-400">
+              Each extra leg becomes its own tracked journey in collection and export.
+            </div>
           </div>
         </div>
       ) : null}
 
       <div>
-        <div className="mb-2.5 text-xs font-semibold text-slate-600">Tracking Window</div>
+        <div className="mb-2.5 text-[12px] font-semibold text-slate-600">Tracking Window</div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <Label>Nights at Destination</Label>
@@ -759,6 +824,7 @@ function CustomBuilderForm({
               type="number"
               min={1}
             />
+            <FieldHint>How many days ahead to scan</FieldHint>
           </div>
         </div>
       </div>
@@ -792,17 +858,26 @@ function CustomBuilderForm({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-        <div className="text-xs text-slate-400">
+      <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-[11px] text-slate-400">
           {state.tripType === "multicity"
-            ? "Extra legs become special sheets in the backend."
+            ? "Separate export sheets are created for each extra leg."
             : "Airport tags accept Enter, comma, or Tab."}
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        <div className="flex gap-2 self-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
+          >
             Cancel
           </Button>
-          <Button type="submit" loading={saving}>
+          <Button
+            type="submit"
+            loading={saving}
+            className="rounded-[10px] shadow-none hover:translate-y-0 hover:shadow-none"
+          >
             {isEditing ? "Save Changes" : "Create Group"}
           </Button>
         </div>
@@ -861,16 +936,6 @@ export function RouteGroupForm({
 
   const modalTitle = initial ? "Edit Route Group" : "New Route Group";
   const isEditing = Boolean(initial);
-
-  const summary = useMemo(() => {
-    const routeCount = manualState.tripType === "multicity" ? manualState.extraLegs.length + 1 : 1;
-    return {
-      routeCount,
-      originCount: manualState.mainLeg.from.length,
-      destinationCount: manualState.mainLeg.to.length,
-      name: manualState.mainLeg.name || deriveName(manualState.mainLeg.from, manualState.mainLeg.to) || "Untitled route group",
-    };
-  }, [manualState]);
 
   async function refreshQueries(groupId?: string) {
     await qc.invalidateQueries({ queryKey: ["route-groups"] });
@@ -991,10 +1056,15 @@ export function RouteGroupForm({
       onClose={onClose}
       title={modalTitle}
       size="lg"
-      className="max-w-[720px] bg-white"
+      className="max-w-[900px] rounded-[28px] border-slate-200 bg-white shadow-[0_30px_90px_-48px_rgba(15,23,42,0.28)]"
+      headerClassName="px-6 pb-4 pt-5 sm:px-6"
+      bodyClassName="px-6 py-5 sm:px-6 sm:py-5"
+      titleClassName="text-[18px] font-semibold tracking-tight text-slate-950"
+      eyebrowClassName="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+      closeButtonClassName="h-[50px] w-[50px] rounded-[18px] border-slate-200 text-slate-300 hover:bg-slate-50 hover:text-slate-500"
     >
       {!isEditing ? (
-        <div className="mb-4 rounded-[10px] bg-slate-100 p-1">
+        <div className="mb-6 rounded-[10px] bg-slate-100 p-[3px]">
           <div className="grid grid-cols-2 gap-1">
             {[
               { id: "quick", label: "Quick Setup" },
@@ -1004,9 +1074,9 @@ export function RouteGroupForm({
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id as "quick" | "manual")}
-                className={`rounded-[8px] px-3 py-2 text-sm font-medium transition ${
+                className={`rounded-[8px] px-3 py-2 text-[13px] font-semibold transition ${
                   tab === item.id
-                    ? "bg-white text-slate-900 shadow-sm"
+                    ? "bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
                     : "text-slate-400"
                 }`}
               >
@@ -1030,40 +1100,15 @@ export function RouteGroupForm({
           error={error}
         />
       ) : (
-        <>
-          <CustomBuilderForm
-            state={manualState}
-            setState={setManualState}
-            isEditing={isEditing}
-            onSubmit={handleManualSubmit}
-            saving={saving}
-            onClose={onClose}
-            error={error}
-          />
-
-          {!isEditing ? (
-            <div className="mt-5 rounded-[12px] border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Summary
-              </div>
-              <div className="text-sm font-semibold text-slate-900">{summary.name}</div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Origins</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">{summary.originCount || "None yet"}</div>
-                </div>
-                <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Destinations</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">{summary.destinationCount || "None yet"}</div>
-                </div>
-                <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Journeys</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">{summary.routeCount}</div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </>
+        <CustomBuilderForm
+          state={manualState}
+          setState={setManualState}
+          isEditing={isEditing}
+          onSubmit={handleManualSubmit}
+          saving={saving}
+          onClose={onClose}
+          error={error}
+        />
       )}
     </Modal>
   );

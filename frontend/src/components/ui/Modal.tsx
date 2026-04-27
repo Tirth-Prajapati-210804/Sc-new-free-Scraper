@@ -25,8 +25,14 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  eyebrow?: string;
   className?: string;
   size?: ModalSize;
+  headerClassName?: string;
+  bodyClassName?: string;
+  titleClassName?: string;
+  eyebrowClassName?: string;
+  closeButtonClassName?: string;
 }
 
 export function Modal({
@@ -34,8 +40,14 @@ export function Modal({
   onClose,
   title,
   children,
+  eyebrow = "Route configuration",
   className,
   size = "lg",
+  headerClassName,
+  bodyClassName,
+  titleClassName,
+  eyebrowClassName,
+  closeButtonClassName,
 }: ModalProps) {
   useEffect(() => {
     if (!open) return;
@@ -92,12 +104,27 @@ export function Modal({
         )}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 sm:px-6">
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 sm:px-6",
+            headerClassName
+          )}
+        >
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Route configuration
+            <p
+              className={cn(
+                "text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500",
+                eyebrowClassName
+              )}
+            >
+              {eyebrow}
             </p>
-            <h2 className="truncate pr-3 text-lg font-semibold tracking-tight text-slate-950">
+            <h2
+              className={cn(
+                "truncate pr-3 text-lg font-semibold tracking-tight text-slate-950",
+                titleClassName
+              )}
+            >
               {title}
             </h2>
           </div>
@@ -106,14 +133,22 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+            className={cn(
+              "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-700",
+              closeButtonClassName
+            )}
           >
             <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6",
+            bodyClassName
+          )}
+        >
           {children}
         </div>
       </div>

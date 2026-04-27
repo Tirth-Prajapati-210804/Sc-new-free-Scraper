@@ -9,6 +9,9 @@ interface TagInputProps {
   onChange: (tags: string[]) => void;
   placeholder?: string;
   hint?: string;
+  className?: string;
+  hintClassName?: string;
+  inputClassName?: string;
 }
 
 const IATA_RE = /^[A-Za-z0-9]{2,4}$/;
@@ -18,6 +21,9 @@ export function TagInput({
   onChange,
   placeholder = "e.g. YYZ",
   hint,
+  className,
+  hintClassName,
+  inputClassName,
 }: TagInputProps) {
   const [input, setInput] = useState("");
   const [invalid, setInvalid] = useState(false);
@@ -138,11 +144,11 @@ export function TagInput({
       <div
         ref={containerRef}
         onClick={() => containerRef.current?.querySelector("input")?.focus()}
-        className={`tag-input-wrap min-h-[40px] w-full cursor-text rounded-[10px] border-[1.5px] bg-white px-3 py-1.5 transition ${
+        className={`tag-input-wrap min-h-[46px] w-full cursor-text rounded-[10px] border bg-white px-3 py-2 transition ${
           invalid
             ? "border-red-400 ring-4 ring-red-100"
             : "border-slate-200 hover:border-slate-300 focus-within:border-brand-500"
-        }`}
+        } ${className ?? ""}`}
       >
         <div className="flex flex-wrap items-center gap-1.5">
           {value.map((tag) => (
@@ -176,7 +182,7 @@ export function TagInput({
             onBlur={handleBlur}
             onFocus={() => setOpen(true)}
             placeholder={value.length === 0 ? placeholder : ""}
-            className="h-7 min-w-[90px] flex-1 border-none bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className={`h-7 min-w-[90px] flex-1 border-none bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName ?? ""}`}
           />
         </div>
       </div>
@@ -213,7 +219,7 @@ export function TagInput({
           Use a valid IATA code with 2 to 4 letters or digits, or choose a suggestion.
         </p>
       ) : (
-        <p className="text-xs text-slate-400">
+        <p className={`text-[11px] text-slate-400 ${hintClassName ?? ""}`}>
           {loading
             ? "Searching locations..."
             : hint ?? "Press Enter, comma, or Tab to add airports, or choose a suggestion."}
