@@ -160,6 +160,54 @@ async def test_collect_single_date_no_results() -> None:
 
 
 @pytest.mark.asyncio
+async def test_collect_single_date_records_parse_error_status() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    provider = MagicMock()
+    provider.name = "searchapi"
+    provider.search_one_way = AsyncMock(side_effect=RuntimeError("invalid json from provider"))
+
+    collector = PriceCollector(
+        session_factory=make_session_factory(session),
+        providers=[provider],
+    )
+    collector._upsert_cheapest = AsyncMock()
+
+    result = await collector.collect_single_date("YYZ", "NRT", DEPART, ROUTE_ID)
+
+    assert result.cheapest is None
+    assert result.errors == {"searchapi": "invalid json from provider"}
+    scrape_logs = [call.args[0] for call in session.add.call_args_list if call.args]
+    assert any(getattr(log, "status", None) == "parse_error" for log in scrape_logs)
+
+
+@pytest.mark.asyncio
+async def test_collect_single_date_records_provider_error_status() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    provider = MagicMock()
+    provider.name = "searchapi"
+    provider.search_one_way = AsyncMock(side_effect=RuntimeError("provider blew up"))
+
+    collector = PriceCollector(
+        session_factory=make_session_factory(session),
+        providers=[provider],
+    )
+    collector._upsert_cheapest = AsyncMock()
+
+    result = await collector.collect_single_date("YYZ", "NRT", DEPART, ROUTE_ID)
+
+    assert result.cheapest is None
+    assert result.errors == {"searchapi": "provider blew up"}
+    scrape_logs = [call.args[0] for call in session.add.call_args_list if call.args]
+    assert any(getattr(log, "status", None) == "provider_error" for log in scrape_logs)
+
+
+@pytest.mark.asyncio
 async def test_collect_route_batch_stats() -> None:
     session = AsyncMock()
     session.add = MagicMock()

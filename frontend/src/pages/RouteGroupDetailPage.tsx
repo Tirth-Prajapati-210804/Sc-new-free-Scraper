@@ -80,23 +80,26 @@ export function RouteGroupDetailPage() {
     enabled: !!originForQuery && !!destForQuery,
   });
 
-  const loadPrices = useCallback(async (origin: string, newOffset: number) => {
-    if (!id) return;
-    setPricesLoading(true);
-    try {
-      const data = await fetchPrices({
-        route_group_id: id,
-        origin: origin || undefined,
-        limit: PRICE_PAGE,
-        offset: newOffset,
-      });
-      setAllPrices((prev) => (newOffset === 0 ? data : [...prev, ...data]));
-      setPriceHasMore(data.length === PRICE_PAGE);
-      priceOffsetRef.current = newOffset;
-    } finally {
-      setPricesLoading(false);
-    }
-  }, [id]);
+  const loadPrices = useCallback(
+    async (origin: string, newOffset: number) => {
+      if (!id) return;
+      setPricesLoading(true);
+      try {
+        const data = await fetchPrices({
+          route_group_id: id,
+          origin: origin || undefined,
+          limit: PRICE_PAGE,
+          offset: newOffset,
+        });
+        setAllPrices((prev) => (newOffset === 0 ? data : [...prev, ...data]));
+        setPriceHasMore(data.length === PRICE_PAGE);
+        priceOffsetRef.current = newOffset;
+      } finally {
+        setPricesLoading(false);
+      }
+    },
+    [id],
+  );
 
   const priceOriginRef = useRef("");
 
@@ -118,7 +121,7 @@ export function RouteGroupDetailPage() {
 
   const handlePriceLoadMore = useCallback(
     () => loadPrices(activeOrigin, priceOffsetRef.current + PRICE_PAGE),
-    [PRICE_PAGE, activeOrigin, loadPrices],
+    [activeOrigin, loadPrices],
   );
 
   usePageTitle(group?.name ?? "Route Group");
@@ -175,8 +178,8 @@ export function RouteGroupDetailPage() {
 
   return (
     <ErrorBoundary>
-      <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="relative box-border w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 overflow-x-hidden">
           <Link
             to="/"
             className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
@@ -184,7 +187,7 @@ export function RouteGroupDetailPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
           </Link>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4" />
               Edit
@@ -208,7 +211,7 @@ export function RouteGroupDetailPage() {
           </div>
         </div>
 
-        <Card className="min-w-0 overflow-hidden p-6">
+        <Card className="w-full min-w-0 max-w-full overflow-hidden p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
               <h2 className="break-words text-2xl font-bold text-slate-950">{group.name}</h2>
@@ -245,10 +248,14 @@ export function RouteGroupDetailPage() {
             </div>
           </div>
 
-          <div className={`mt-5 grid min-w-0 gap-4 border-t border-slate-100 pt-5 ${group.trip_type === "multi_city" ? "lg:grid-cols-2" : ""}`}>
-            <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+          <div
+            className={`mt-5 grid min-w-0 gap-4 border-t border-slate-100 pt-5 ${
+              group.trip_type === "multi_city" ? "lg:grid-cols-2" : ""
+            }`}
+          >
+            <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">Outbound</p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
                 {group.origins.map((code) => (
                   <span
                     key={`origin-${code}`}
@@ -257,7 +264,7 @@ export function RouteGroupDetailPage() {
                     {code}
                   </span>
                 ))}
-                <span className="text-slate-300">→</span>
+                <span className="text-slate-300">-&gt;</span>
                 {group.destinations.map((code) => (
                   <span
                     key={`destination-${code}`}
@@ -270,13 +277,13 @@ export function RouteGroupDetailPage() {
             </div>
 
             {group.trip_type === "multi_city" && returnOrigin ? (
-              <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">Return</p>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex max-w-full flex-wrap items-center gap-2 overflow-x-hidden">
                   <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
                     {returnOrigin}
                   </span>
-                  <span className="text-slate-300">→</span>
+                  <span className="text-slate-300">-&gt;</span>
                   {group.origins.map((code) => (
                     <span
                       key={`return-${code}`}
@@ -291,7 +298,7 @@ export function RouteGroupDetailPage() {
           </div>
         </Card>
 
-        <Card className="min-w-0 overflow-hidden p-6">
+        <Card className="w-full min-w-0 max-w-full overflow-hidden p-6">
           <h3 className="mb-4 text-[15px] font-semibold text-slate-900">Collection Progress</h3>
           {progressQuery.isLoading ? (
             <Skeleton className="h-32" />
@@ -304,10 +311,10 @@ export function RouteGroupDetailPage() {
           )}
         </Card>
 
-        <Card className="min-w-0 overflow-hidden p-6">
+        <Card className="w-full min-w-0 max-w-full overflow-hidden p-6">
           <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-4">
             <h3 className="text-[15px] font-semibold text-slate-900">Price Trend</h3>
-            <div className="flex min-w-0 max-w-full items-center gap-2 text-sm">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-hidden text-sm">
               <select
                 aria-label="Select origin"
                 value={selectedOrigin || group.origins[0]}
@@ -320,7 +327,7 @@ export function RouteGroupDetailPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-slate-400">→</span>
+              <span className="text-slate-400">-&gt;</span>
               <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-700">
                 {destForQuery}
               </span>
@@ -339,14 +346,14 @@ export function RouteGroupDetailPage() {
           )}
         </Card>
 
-        <Card className="min-w-0 overflow-hidden p-0">
+        <Card className="w-full min-w-0 max-w-full overflow-hidden p-0">
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-4 px-6 pt-6">
             <div className="min-w-0">
               <h3 className="text-[15px] font-semibold text-slate-900">Price Data</h3>
               {group.trip_type === "multi_city" && returnOrigin ? (
                 <p className="mt-1 break-words text-xs text-slate-400">
-                  Each row is one full itinerary fare for {group.origins[0]} → {group.destinations[0]} and{" "}
-                  {returnOrigin} → {group.origins[0]} after {group.nights} nights.
+                  Each row is one full itinerary fare for {group.origins[0]} -&gt; {group.destinations[0]} and{" "}
+                  {returnOrigin} -&gt; {group.origins[0]} after {group.nights} nights.
                 </p>
               ) : null}
             </div>
@@ -393,8 +400,7 @@ export function RouteGroupDetailPage() {
             <div className="mx-4 w-full max-w-sm rounded-[24px] bg-white p-6 shadow-xl">
               <h3 className="text-base font-semibold text-slate-900">Trigger Full Scrape?</h3>
               <p className="mt-2 text-sm text-slate-500">
-                This will start a collection run for missing dates in{" "}
-                <span className="font-medium">{group.name}</span>.
+                This will start a collection run for missing dates in <span className="font-medium">{group.name}</span>.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button variant="secondary" onClick={() => setConfirmTrigger(false)}>
@@ -413,8 +419,8 @@ export function RouteGroupDetailPage() {
             <div className="mx-4 w-full max-w-sm rounded-[24px] bg-white p-6 shadow-xl">
               <h3 className="text-base font-semibold text-slate-900">Delete Route Group</h3>
               <p className="mt-2 text-sm text-slate-500">
-                Are you sure you want to delete{" "}
-                <span className="font-medium text-slate-700">{group.name}</span>? All collected price data will be permanently lost.
+                Are you sure you want to delete <span className="font-medium text-slate-700">{group.name}</span>? All
+                collected price data will be permanently lost.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button variant="secondary" onClick={() => setConfirmDelete(false)}>

@@ -202,9 +202,13 @@ export function CollectionLogsPage() {
                 <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                   <option value="">All statuses</option>
                   <option value="success">Success</option>
-                  <option value="error">Error</option>
                   <option value="no_results">No results</option>
                   <option value="rate_limited">Rate limited</option>
+                  <option value="quota_exhausted">Quota exhausted</option>
+                  <option value="auth_error">Auth error</option>
+                  <option value="parse_error">Parse error</option>
+                  <option value="provider_error">Provider error</option>
+                  <option value="stopped">Stopped</option>
                 </Select>
               </div>
             </div>

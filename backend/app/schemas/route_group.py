@@ -214,7 +214,7 @@ class ScrapeHealth(BaseModel):
     """Summary of recent scrape activity for a route group.
 
     status values: "ok", "never_scraped", "rate_limited", "quota_exhausted",
-                   "auth_error", "error"
+                   "auth_error", "parse_error", "provider_error", "stopped"
     """
 
     status: str

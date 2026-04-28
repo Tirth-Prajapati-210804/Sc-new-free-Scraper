@@ -1,7 +1,11 @@
 """Integration tests for the /api/v1/route-groups endpoints."""
 from __future__ import annotations
 
+from datetime import date
+from uuid import UUID
+
 import pytest
+from sqlalchemy import func, select
 
 
 VALID_GROUP = {
@@ -151,3 +155,87 @@ async def test_location_suggestions_returns_matches(auth_client):
     assert res.status_code == 200
     data = res.json()
     assert any(item["label"] == "Canada" for item in data)
+
+
+@pytest.mark.asyncio
+async def test_update_route_group_clears_stale_collection_data(auth_client, db_session_factory):
+    from app.models.all_flight_result import AllFlightResult
+    from app.models.daily_cheapest import DailyCheapestPrice
+    from app.models.scrape_log import ScrapeLog
+
+    create_res = await auth_client.post("/api/v1/route-groups/", json=VALID_GROUP)
+    group_id = create_res.json()["id"]
+    group_uuid = UUID(group_id)
+
+    async with db_session_factory() as session:
+        session.add(
+            DailyCheapestPrice(
+                route_group_id=group_uuid,
+                origin="YVR",
+                destination="SGN",
+                depart_date=date(2026, 5, 1),
+                airline="Air Canada",
+                price=799.0,
+                currency="USD",
+                provider="searchapi",
+            )
+        )
+        session.add(
+            AllFlightResult(
+                route_group_id=group_uuid,
+                origin="YVR",
+                destination="SGN",
+                depart_date=date(2026, 5, 1),
+                airline="Air Canada",
+                price=799.0,
+                currency="USD",
+                provider="searchapi",
+                deep_link="https://example.com",
+            )
+        )
+        session.add(
+            ScrapeLog(
+                route_group_id=group_uuid,
+                origin="YVR",
+                destination="SGN",
+                depart_date=date(2026, 5, 1),
+                provider="searchapi",
+                status="success",
+                price=799.0,
+                currency="USD",
+            )
+        )
+        await session.commit()
+
+    res = await auth_client.put(
+        f"/api/v1/route-groups/{group_id}",
+        json={"destinations": ["NRT"]},
+    )
+    assert res.status_code == 200
+
+    async with db_session_factory() as session:
+        daily_count = (
+            await session.execute(
+                select(func.count()).select_from(DailyCheapestPrice).where(
+                    DailyCheapestPrice.route_group_id == group_uuid
+                )
+            )
+        ).scalar_one()
+        all_results_count = (
+            await session.execute(
+                select(func.count()).select_from(AllFlightResult).where(
+                    AllFlightResult.route_group_id == group_uuid
+                )
+            )
+        ).scalar_one()
+        scrape_log_count = (
+            await session.execute(
+                select(func.count()).select_from(ScrapeLog).where(
+                    ScrapeLog.route_group_id == group_uuid
+                )
+            )
+        ).scalar_one()
+
+    assert daily_count == 0
+    assert all_results_count == 0
+    assert scrape_log_count == 0

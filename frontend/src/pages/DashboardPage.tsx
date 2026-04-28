@@ -171,9 +171,10 @@ export function DashboardPage() {
     statusQuery.data?.progress?.current_origin,
   ]);
 
+  const searchApiStatus = health?.provider_status?.searchapi;
   const noProvider =
     !healthQuery.isLoading &&
-    health?.provider_status?.searchapi !== "configured" &&
+    searchApiStatus === "disabled" &&
     !health?.demo_mode;
 
   const filteredGroups = useMemo(() => {
@@ -277,7 +278,7 @@ export function DashboardPage() {
             tone="amber"
             icon={<AlertTriangle className="h-4 w-4" />}
             title="No API key configured"
-            text="Add SEARCHAPI_KEY or enable DEMO_MODE=true."
+            text="Add SEARCHAPI_KEYS or SEARCHAPI_KEY, or enable DEMO_MODE=true."
           />
         ) : null}
 

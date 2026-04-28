@@ -5,6 +5,7 @@ import {
   FileSearch,
   KeyRound,
   MinusCircle,
+  Square,
   XCircle,
 } from "lucide-react";
 
@@ -37,7 +38,7 @@ export function ScrapeLogsTable({
 
   return (
     <div className="overflow-hidden rounded-[16px] border border-slate-200">
-      <div className="overflow-x-auto">
+      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
         <table className="min-w-full text-left text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50">
             <tr className="border-b border-slate-200">
@@ -59,7 +60,7 @@ export function ScrapeLogsTable({
                 <Td muted>{formatRelativeTime(log.created_at)}</Td>
                 <Td>
                   <span className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[11px] font-medium text-slate-700">
-                    {log.origin}→{log.destination}
+                    {log.origin} -&gt; {log.destination}
                   </span>
                 </Td>
                 <Td className="capitalize text-slate-700">{log.provider}</Td>
@@ -72,7 +73,7 @@ export function ScrapeLogsTable({
                       ${Math.round(log.cheapest_price).toLocaleString()}
                     </span>
                   ) : (
-                    <span className="text-slate-400">—</span>
+                    <span className="text-slate-400">-</span>
                   )}
                 </Td>
                 <Td align="right">
@@ -156,7 +157,7 @@ function StatusBadge({
     return (
       <Badge
         icon={<AlertCircle className="h-3.5 w-3.5" />}
-        text="Limited"
+        text="Rate Limited"
         cls="bg-orange-50 text-orange-700"
       />
     );
@@ -178,6 +179,36 @@ function StatusBadge({
         icon={<KeyRound className="h-3.5 w-3.5" />}
         text="Auth Error"
         cls="bg-rose-50 text-rose-700"
+      />
+    );
+  }
+
+  if (status === "parse_error") {
+    return (
+      <Badge
+        icon={<AlertCircle className="h-3.5 w-3.5" />}
+        text="Parse Error"
+        cls="bg-orange-50 text-orange-700"
+      />
+    );
+  }
+
+  if (status === "provider_error") {
+    return (
+      <Badge
+        icon={<XCircle className="h-3.5 w-3.5" />}
+        text="Provider Error"
+        cls="bg-red-50 text-red-700"
+      />
+    );
+  }
+
+  if (status === "stopped") {
+    return (
+      <Badge
+        icon={<Square className="h-3.5 w-3.5" />}
+        text="Stopped"
+        cls="bg-slate-100 text-slate-700"
       />
     );
   }
@@ -210,7 +241,7 @@ function Badge({
 
 function DurationCell({ ms }: { ms: number | null }) {
   if (ms == null) {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-slate-400">-</span>;
   }
 
   const cls =

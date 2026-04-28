@@ -272,3 +272,20 @@ async def test_multi_city_uses_single_provider_request(provider: SearchApiProvid
     assert results[0].stops == 2
     assert results[0].raw_data["stop_result_label"] == "1 stop"
     assert provider._client.get.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_multi_city_no_results_body_returns_empty(provider: SearchApiProvider) -> None:
+    data = {"error": "Google Flights didn't return any results."}
+    provider._client.get = AsyncMock(return_value=mock_response(data))
+
+    results = await provider._search_multi_city_once(
+        [
+            {"departure_id": "YVR", "arrival_id": "TYO", "outbound_date": DEPART},
+            {"departure_id": "SHA", "arrival_id": "YVR", "outbound_date": DEPART + timedelta(days=11)},
+        ],
+        currency="CAD",
+        max_stops=1,
+    )
+
+    assert results == []

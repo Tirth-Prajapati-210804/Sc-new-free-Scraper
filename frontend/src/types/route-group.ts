@@ -34,7 +34,9 @@ export type ScrapeHealthStatus =
   | "rate_limited"
   | "quota_exhausted"
   | "auth_error"
-  | "error";
+  | "parse_error"
+  | "provider_error"
+  | "stopped";
 
 export interface ScrapeHealth {
   status: ScrapeHealthStatus;

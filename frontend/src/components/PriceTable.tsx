@@ -77,6 +77,7 @@ function HeaderCell({
   sortKey: keyof DailyPrice;
   onToggleSort: (key: keyof DailyPrice) => void;
 }) {
+  const isSorted = sortKey === column.key;
   return (
     <th
       className={`cursor-pointer select-none px-6 py-3 hover:text-slate-700 ${
@@ -84,7 +85,7 @@ function HeaderCell({
       }`}
       onClick={() => onToggleSort(column.key)}
     >
-      {column.label} {sortKey === column.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+      {column.label} {isSorted ? (sortDir === "asc" ? "↑" : "↓") : ""}
     </th>
   );
 }
@@ -183,8 +184,8 @@ export function PriceTable({
 
   return (
     <>
-      <div className="w-full max-w-full overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+      <div className="block w-full max-w-full overflow-x-auto overscroll-x-contain pb-1">
+        <table className="w-max min-w-full text-left text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
               {columns.map((col) => (

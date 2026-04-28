@@ -19,7 +19,61 @@ from app.schemas.route_group import (
 from app.utils.route_segments import iter_group_segments
 
 _NON_ERROR_STATUSES = {"success", "no_results"}
-_ERROR_PRIORITY = ("quota_exhausted", "auth_error", "rate_limited", "error")
+_ERROR_PRIORITY = (
+    "quota_exhausted",
+    "auth_error",
+    "rate_limited",
+    "parse_error",
+    "provider_error",
+    "stopped",
+)
+
+_ROUTE_IDENTITY_FIELDS = (
+    "destinations",
+    "origins",
+    "nights",
+    "days_ahead",
+    "trip_type",
+    "special_sheets",
+    "currency",
+    "max_stops",
+    "start_date",
+    "end_date",
+)
+
+
+def _normalize_identity_value(field: str, value):
+    if field in {"destinations", "origins"}:
+        return tuple(str(item).strip().upper() for item in (value or []))
+    if field == "special_sheets":
+        normalized: list[tuple[str, tuple[str, ...]]] = []
+        for sheet in value or []:
+            if hasattr(sheet, "model_dump"):
+                sheet = sheet.model_dump()
+            origin = str((sheet or {}).get("origin") or "").strip().upper()
+            destinations = tuple(
+                str(item).strip().upper()
+                for item in ((sheet or {}).get("destinations") or [])
+            )
+            normalized.append((origin, destinations))
+        return tuple(normalized)
+    return value
+
+
+async def _clear_group_collection_data(session: AsyncSession, group_id: uuid.UUID) -> None:
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.all_flight_result import AllFlightResult
+
+    await session.execute(
+        sa_delete(DailyCheapestPrice).where(DailyCheapestPrice.route_group_id == group_id)
+    )
+    await session.execute(
+        sa_delete(AllFlightResult).where(AllFlightResult.route_group_id == group_id)
+    )
+    await session.execute(
+        sa_delete(ScrapeLog).where(ScrapeLog.route_group_id == group_id)
+    )
 
 
 async def list_all(
@@ -88,10 +142,21 @@ async def update(
     if not group:
         return None
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    payload = data.model_dump(exclude_none=True)
+    route_identity_changed = False
+
+    for field, value in payload.items():
         if field == "special_sheets" and value is not None:
             value = [s if isinstance(s, dict) else s.model_dump() for s in value]
+        if field in _ROUTE_IDENTITY_FIELDS:
+            previous = _normalize_identity_value(field, getattr(group, field))
+            incoming = _normalize_identity_value(field, value)
+            if previous != incoming:
+                route_identity_changed = True
         setattr(group, field, value)
+
+    if route_identity_changed:
+        await _clear_group_collection_data(session, group_id)
 
     await session.commit()
     await session.refresh(group)
@@ -110,12 +175,9 @@ async def delete(
         return False
 
     from sqlalchemy import delete as sa_delete
-    from app.models.all_flight_result import AllFlightResult
-    from app.models.daily_cheapest import DailyCheapestPrice
 
     # 1. Explicitly delete related flight data (redundant if CASCADE is set, but safer)
-    await session.execute(sa_delete(DailyCheapestPrice).where(DailyCheapestPrice.route_group_id == group_id))
-    await session.execute(sa_delete(AllFlightResult).where(AllFlightResult.route_group_id == group_id))
+    await _clear_group_collection_data(session, group_id)
 
     # 2. Delete the group itself using a direct statement
     await session.execute(sa_delete(RouteGroup).where(RouteGroup.id == group_id))
@@ -263,7 +325,7 @@ async def _compute_scrape_health(
     if recent_error_status and successes == 0:
         status = recent_error_status
     elif last_status not in _NON_ERROR_STATUSES and successes == 0:
-        status = last_status if last_status in _ERROR_PRIORITY else "error"
+        status = last_status if last_status in _ERROR_PRIORITY else "provider_error"
     else:
         status = "ok"
 

@@ -37,7 +37,15 @@ export interface ScrapeLogEntry {
   destination: string;
   depart_date: string;
   provider: string;
-  status: "success" | "error" | "no_results" | "rate_limited" | "quota_exhausted" | "auth_error";
+  status:
+    | "success"
+    | "no_results"
+    | "rate_limited"
+    | "quota_exhausted"
+    | "auth_error"
+    | "provider_error"
+    | "parse_error"
+    | "stopped";
   offers_found: number;
   cheapest_price: number | null;
   error_message: string | null;

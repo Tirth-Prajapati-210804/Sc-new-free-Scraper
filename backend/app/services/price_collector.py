@@ -32,7 +32,10 @@ def _classify_exception(exc: BaseException) -> str:
         return "auth_error"
     if isinstance(exc, ProviderRateLimitedError):
         return "rate_limited"
-    return "error"
+    message = str(exc).lower()
+    if "invalid json" in message or "parse" in message:
+        return "parse_error"
+    return "provider_error"
 
 
 @dataclass

@@ -34,6 +34,15 @@ log = get_logger(__name__)
 _BASE_URL = "https://www.searchapi.io/api/v1/search"
 
 
+def _is_no_results_message(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return (
+        "didn't return any results" in text
+        or "did not return any results" in text
+        or "no results" in text
+    )
+
+
 class ProviderQuotaExhaustedError(RuntimeError):
     pass
 
@@ -378,6 +387,8 @@ class SearchApiProvider:
 
         if isinstance(data, dict) and data.get("error"):
             err_text = str(data["error"])
+            if _is_no_results_message(err_text):
+                return []
             err_cls = _classify_error_message(err_text)
 
             if err_cls is ProviderQuotaExhaustedError:
@@ -523,6 +534,8 @@ class SearchApiProvider:
 
         if isinstance(data, dict) and data.get("error"):
             err_text = str(data["error"])
+            if _is_no_results_message(err_text):
+                return {}
             err_cls = _classify_error_message(err_text)
 
             if err_cls is ProviderQuotaExhaustedError:
@@ -789,6 +802,8 @@ class SearchApiProvider:
         # Body-level error
         if isinstance(data, dict) and data.get("error"):
             err_text = str(data["error"])
+            if _is_no_results_message(err_text):
+                return []
             err_cls = _classify_error_message(err_text)
 
             if err_cls is ProviderQuotaExhaustedError:
