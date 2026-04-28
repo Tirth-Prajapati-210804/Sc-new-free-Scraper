@@ -561,12 +561,17 @@ class SearchApiProvider:
         )
 
         booking_token = offer.get("booking_token", "")
-        departure_token = offer.get("departure_token", "")
         deep_link = (
             f"https://www.google.com/travel/flights?tfs={booking_token}"
             if booking_token
             else f"https://www.google.com/flights?hl=en#flt="
         )
+
+        total_stops = 0
+        for flight in flights:
+            layovers = flight.get("layovers")
+            if isinstance(layovers, list):
+                total_stops += len(layovers)
 
         return ProviderResult(
             price=float(price),
@@ -574,7 +579,7 @@ class SearchApiProvider:
             airline=f"{outbound_airline} / {return_airline}",
             deep_link=deep_link,
             provider=self.name,
-            stops=0,
+            stops=total_stops,
             duration_minutes=int(offer.get("total_duration", 0) or 0),
             raw_data={
                 "trip_type": "multi_city",
@@ -582,7 +587,6 @@ class SearchApiProvider:
                 "outbound_airline": outbound_airline,
                 "return_airline": return_airline,
                 "booking_token": booking_token,
-                "departure_token": departure_token,
                 "flights": flights,
             },
         )
@@ -656,45 +660,23 @@ class SearchApiProvider:
             "api_key": self._api_key,
         }
 
-        first_leg_data = await self._request_json(base_params)
-        direct_candidates = self._extract_multi_city_candidates(first_leg_data, currency, stop_label)
-        finalized = [candidate for candidate in direct_candidates if candidate.raw_data.get("booking_token")]
-        if finalized and any(len(candidate.raw_data.get("flights", [])) >= 2 for candidate in finalized):
-            return finalized
+        data = await self._request_json(base_params)
+        candidates = self._extract_multi_city_candidates(data, currency, stop_label)
 
-        selected_candidates: list[ProviderResult] = []
-        for candidate in direct_candidates[:5]:
-            departure_token = str(candidate.raw_data.get("departure_token") or "").strip()
-            if not departure_token:
-                continue
+        log.info(
+            "searchapi_results",
+            trip_type="multi_city",
+            origin=str(legs[0]["departure_id"]),
+            destination=str(legs[0]["arrival_id"]),
+            depart_date=legs[0]["outbound_date"].isoformat(),
+            return_origin=str(legs[1]["departure_id"]),
+            return_date=legs[1]["outbound_date"].isoformat(),
+            count=len(candidates),
+            currency=currency,
+            stops=self._STOPS_MAP.get(max_stops, "any"),
+        )
 
-            next_leg_data = await self._request_json(
-                {
-                    **base_params,
-                    "departure_token": departure_token,
-                }
-            )
-            second_leg_candidates = self._extract_multi_city_candidates(next_leg_data, currency, stop_label)
-            selected_candidates.extend(second_leg_candidates[:10])
-
-        if not selected_candidates:
-            return []
-
-        selected_candidates.sort(key=lambda item: item.price)
-        cheapest = selected_candidates[0]
-        booking_token = str(cheapest.raw_data.get("booking_token") or "").strip()
-        if booking_token:
-            final_data = await self._request_json(
-                {
-                    **base_params,
-                    "booking_token": booking_token,
-                }
-            )
-            final_candidates = self._extract_multi_city_candidates(final_data, currency, stop_label)
-            if final_candidates:
-                return final_candidates
-
-        return [cheapest]
+        return candidates
 
     async def _search_one_way_once(
         self,

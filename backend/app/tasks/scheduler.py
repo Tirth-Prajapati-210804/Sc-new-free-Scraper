@@ -197,6 +197,7 @@ class FlightScheduler:
                     )
                     session.add(run)
                     await session.flush()
+                    await session.commit()
 
                     providers = self.provider_registry.get_enabled()
 
@@ -265,6 +266,8 @@ class FlightScheduler:
                         self._progress["prices_total"] += len(remaining) * len(segment.destinations)
 
                     self._progress["routes_total"] = len(planned_routes)
+                    run.routes_total = len(planned_routes)
+                    await session.commit()
 
                     collector = PriceCollector(
                         session_factory=self.session_factory,
@@ -291,6 +294,7 @@ class FlightScheduler:
                         self._progress["current_origin"] = segment.origin
                         self._progress["current_destination"] = ""
                         self._progress["current_date"] = ""
+                        batch_size = 1 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
 
                         try:
                             stats = await collector.collect_route_batch(
@@ -298,7 +302,7 @@ class FlightScheduler:
                                 destinations=segment.destinations,
                                 dates=remaining,
                                 route_group_id=group.id,
-                                batch_size=self.settings.scrape_batch_size,
+                                batch_size=batch_size,
                                 delay_seconds=self.settings.scrape_delay_seconds,
                                 stop_check=lambda: self._stop_requested,
                                 currency=group.currency,
@@ -329,7 +333,7 @@ class FlightScheduler:
                         run.status = "failed"
                     else:
                         run.status = "completed"
-                    run.routes_total = len(ranked_routes)
+                    run.routes_total = len(planned_routes)
                     run.routes_success = total_success
                     run.routes_failed = total_errors
                     run.dates_scraped = total_success
@@ -493,6 +497,7 @@ class FlightScheduler:
             return stats
 
         self._is_collecting = True
+        self._stop_requested = False
         lock_acquired = False
 
         try:
@@ -502,6 +507,14 @@ class FlightScheduler:
                     return stats
 
                 try:
+                    run = CollectionRun(
+                        status="running",
+                        started_at=datetime.now(UTC),
+                    )
+                    session.add(run)
+                    await session.flush()
+                    await session.commit()
+
                     result = await session.execute(
                         select(RouteGroup).where(
                             RouteGroup.id == group_id,
@@ -512,11 +525,19 @@ class FlightScheduler:
                     group = result.scalar_one_or_none()
 
                     if not group:
+                        run.status = "failed"
+                        run.errors = [{"code": "group_not_found", "detail": "Route group not found or inactive."}]
+                        run.finished_at = datetime.now(UTC)
+                        await session.commit()
                         return stats
 
                     providers = self.provider_registry.get_enabled()
 
                     if not providers:
+                        run.status = "failed"
+                        run.errors = [{"code": "provider_unavailable", "detail": "No enabled provider is available."}]
+                        run.finished_at = datetime.now(UTC)
+                        await session.commit()
                         return stats
 
                     dates = target_dates if target_dates else self._group_dates(group)
@@ -539,6 +560,8 @@ class FlightScheduler:
                         self._progress["prices_total"] += len(remaining) * len(segment.destinations)
 
                     self._progress["routes_total"] = len(planned_segments)
+                    run.routes_total = len(planned_segments)
+                    await session.commit()
 
                     collector = PriceCollector(
                         session_factory=self.session_factory,
@@ -559,17 +582,22 @@ class FlightScheduler:
                     )
 
                     for segment, remaining in planned_segments:
+                        if self._stop_requested:
+                            break
+
                         self._progress["current_origin"] = segment.origin
                         self._progress["current_destination"] = ""
                         self._progress["current_date"] = ""
+                        batch_size = 1 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
 
                         part = await collector.collect_route_batch(
                             origin=segment.origin,
                             destinations=segment.destinations,
                             dates=remaining,
                             route_group_id=group.id,
-                            batch_size=self.settings.scrape_batch_size,
+                            batch_size=batch_size,
                             delay_seconds=self.settings.scrape_delay_seconds,
+                            stop_check=lambda: self._stop_requested,
                             currency=group.currency,
                             max_stops=group.max_stops,
                             trip_type=segment.trip_type,
@@ -582,6 +610,18 @@ class FlightScheduler:
                         stats["skipped"] += part["skipped"]
                         self._progress["routes_done"] += 1
 
+                    if self._stop_requested:
+                        run.status = "stopped"
+                    elif stats["success"] == 0 and stats["errors"] > 0:
+                        run.status = "failed"
+                    else:
+                        run.status = "completed"
+                    run.routes_success = stats["success"]
+                    run.routes_failed = stats["errors"]
+                    run.dates_scraped = stats["success"]
+                    run.finished_at = datetime.now(UTC)
+                    await session.commit()
+
                 finally:
                     if lock_acquired:
                         try:
@@ -591,6 +631,7 @@ class FlightScheduler:
 
         finally:
             self._is_collecting = False
+            self._stop_requested = False
 
         return stats
 

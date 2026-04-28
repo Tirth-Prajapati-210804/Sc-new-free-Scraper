@@ -158,6 +158,7 @@ async def test_trigger_single_group_forwards_trip_type_and_nights(
     select_result = MagicMock()
     select_result.scalar_one_or_none.return_value = group
     session = AsyncMock()
+    session.add = MagicMock()
     session.execute = AsyncMock(return_value=select_result)
 
     factory = MagicMock()
@@ -227,6 +228,7 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
     select_result = MagicMock()
     select_result.scalar_one_or_none.return_value = group
     session = AsyncMock()
+    session.add = MagicMock()
     session.execute = AsyncMock(return_value=select_result)
 
     factory = MagicMock()
@@ -244,6 +246,8 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
     assert captured[0]["trip_type"] == "multi_city"
     assert captured[0]["nights"] == 7
     assert captured[0]["return_origin"] == "BUD"
+    assert captured[0]["batch_size"] == 1
+    assert callable(captured[0]["stop_check"])
 
 
 @pytest.mark.asyncio
@@ -289,6 +293,7 @@ async def test_trigger_single_group_updates_live_progress(
     select_result = MagicMock()
     select_result.scalar_one_or_none.return_value = group
     session = AsyncMock()
+    session.add = MagicMock()
     session.execute = AsyncMock(return_value=select_result)
 
     factory = MagicMock()

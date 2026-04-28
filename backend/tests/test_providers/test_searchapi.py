@@ -238,3 +238,37 @@ async def test_close(provider: SearchApiProvider) -> None:
     provider._client.aclose = AsyncMock()
     await provider.close()
     provider._client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_multi_city_uses_single_provider_request(provider: SearchApiProvider) -> None:
+    data = {
+        "best_flights": [
+            {
+                "price": 829,
+                "total_duration": 870,
+                "booking_token": "book123",
+                "flights": [
+                    {"airline": "Icelandair", "flight_number": "FI 602", "layovers": [{"duration": 90}]},
+                    {"airline": "Lufthansa", "flight_number": "LH 1677", "layovers": [{"duration": 75}]},
+                ],
+            }
+        ],
+        "other_flights": [],
+    }
+    provider._client.get = AsyncMock(return_value=mock_response(data))
+
+    results = await provider._search_multi_city_once(
+        [
+            {"departure_id": "YYZ", "arrival_id": "BER", "outbound_date": DEPART},
+            {"departure_id": "BUD", "arrival_id": "YYZ", "outbound_date": DEPART + timedelta(days=11)},
+        ],
+        currency="CAD",
+        max_stops=1,
+    )
+
+    assert len(results) == 1
+    assert results[0].price == 829
+    assert results[0].stops == 2
+    assert results[0].raw_data["stop_result_label"] == "1 stop"
+    assert provider._client.get.await_count == 1

@@ -175,7 +175,7 @@ export function RouteGroupDetailPage() {
 
   return (
     <ErrorBoundary>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 overflow-x-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to="/"
@@ -208,10 +208,10 @@ export function RouteGroupDetailPage() {
           </div>
         </div>
 
-        <Card className="p-6">
+        <Card className="min-w-0 overflow-hidden p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold text-slate-950">{group.name}</h2>
+            <div className="min-w-0 space-y-1">
+              <h2 className="break-words text-2xl font-bold text-slate-950">{group.name}</h2>
               <p className="text-sm text-slate-500">{group.destination_label}</p>
               <p className="text-xs font-medium text-slate-400">
                 {formatFreshnessLabel(progressQuery.data?.last_scraped_at ?? null)}
@@ -291,7 +291,7 @@ export function RouteGroupDetailPage() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="min-w-0 overflow-hidden p-6">
           <h3 className="mb-4 text-[15px] font-semibold text-slate-900">Collection Progress</h3>
           {progressQuery.isLoading ? (
             <Skeleton className="h-32" />
@@ -304,7 +304,7 @@ export function RouteGroupDetailPage() {
           )}
         </Card>
 
-        <Card className="p-6">
+        <Card className="min-w-0 overflow-hidden p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <h3 className="text-[15px] font-semibold text-slate-900">Price Trend</h3>
             <div className="flex items-center gap-2 text-sm">
@@ -339,7 +339,7 @@ export function RouteGroupDetailPage() {
           )}
         </Card>
 
-        <Card className="overflow-hidden p-0">
+        <Card className="min-w-0 overflow-hidden p-0">
           <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6">
             <div>
               <h3 className="text-[15px] font-semibold text-slate-900">Price Data</h3>
