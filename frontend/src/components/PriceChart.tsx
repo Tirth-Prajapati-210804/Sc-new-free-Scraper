@@ -56,37 +56,39 @@ export function PriceChart({ data }: PriceChartProps) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
-        <defs>
-          <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.22} />
-            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 12, fill: "#64748b" }}
-          tickFormatter={fmtDate}
-          minTickGap={40}
-        />
-        <YAxis
-          tick={{ fontSize: 12, fill: "#64748b" }}
-          tickFormatter={(v: unknown) => `$${Number(v).toLocaleString()}`}
-          width={68}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <Area
-          type="monotone"
-          dataKey="price"
-          stroke="#4f46e5"
-          strokeWidth={2}
-          fill="url(#priceGradient)"
-          dot={false}
-          activeDot={{ r: 4, strokeWidth: 0 }}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="w-full max-w-full overflow-x-hidden">
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
+          <defs>
+            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.22} />
+              <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12, fill: "#64748b" }}
+            tickFormatter={fmtDate}
+            minTickGap={40}
+          />
+          <YAxis
+            tick={{ fontSize: 12, fill: "#64748b" }}
+            tickFormatter={(v: unknown) => `$${Number(v).toLocaleString()}`}
+            width={68}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="price"
+            stroke="#4f46e5"
+            strokeWidth={2}
+            fill="url(#priceGradient)"
+            dot={false}
+            activeDot={{ r: 4, strokeWidth: 0 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

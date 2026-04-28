@@ -23,10 +23,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   usePageTitle();
 
   return (
-    <div className="flex min-h-screen bg-transparent">
+    <div className="flex min-h-screen overflow-x-hidden bg-transparent">
       <Sidebar />
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-[220px]">
-        <main className="flex-1 px-4 pb-6 pt-6 sm:px-6 lg:overflow-y-auto lg:px-8 lg:pb-8">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[220px]">
+        <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-6 pt-6 sm:px-6 lg:overflow-y-auto lg:px-8 lg:pb-8">
           {children}
         </main>
       </div>

@@ -175,7 +175,7 @@ export function RouteGroupDetailPage() {
 
   return (
     <ErrorBoundary>
-      <div className="min-w-0 space-y-6 overflow-x-hidden">
+      <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to="/"
@@ -226,7 +226,7 @@ export function RouteGroupDetailPage() {
             </span>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="mt-5 grid min-w-0 grid-cols-2 gap-4 lg:grid-cols-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Nights</p>
               <p className="mt-0.5 text-sm font-semibold text-slate-800">{group.nights}</p>
@@ -245,8 +245,8 @@ export function RouteGroupDetailPage() {
             </div>
           </div>
 
-          <div className={`mt-5 grid gap-4 border-t border-slate-100 pt-5 ${group.trip_type === "multi_city" ? "lg:grid-cols-2" : ""}`}>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className={`mt-5 grid min-w-0 gap-4 border-t border-slate-100 pt-5 ${group.trip_type === "multi_city" ? "lg:grid-cols-2" : ""}`}>
+            <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">Outbound</p>
               <div className="flex flex-wrap items-center gap-2">
                 {group.origins.map((code) => (
@@ -270,7 +270,7 @@ export function RouteGroupDetailPage() {
             </div>
 
             {group.trip_type === "multi_city" && returnOrigin ? (
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">Return</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
@@ -305,9 +305,9 @@ export function RouteGroupDetailPage() {
         </Card>
 
         <Card className="min-w-0 overflow-hidden p-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-4">
             <h3 className="text-[15px] font-semibold text-slate-900">Price Trend</h3>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex min-w-0 max-w-full items-center gap-2 text-sm">
               <select
                 aria-label="Select origin"
                 value={selectedOrigin || group.origins[0]}
@@ -340,17 +340,17 @@ export function RouteGroupDetailPage() {
         </Card>
 
         <Card className="min-w-0 overflow-hidden p-0">
-          <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6">
-            <div>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-4 px-6 pt-6">
+            <div className="min-w-0">
               <h3 className="text-[15px] font-semibold text-slate-900">Price Data</h3>
               {group.trip_type === "multi_city" && returnOrigin ? (
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 break-words text-xs text-slate-400">
                   Each row is one full itinerary fare for {group.origins[0]} → {group.destinations[0]} and{" "}
                   {returnOrigin} → {group.origins[0]} after {group.nights} nights.
                 </p>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <select
                 aria-label="Filter by origin"
                 value={selectedOrigin}

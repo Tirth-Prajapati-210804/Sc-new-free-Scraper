@@ -14,7 +14,7 @@ export function Card({
     <div
       {...props}
       className={cn(
-        "rounded-[28px] border border-slate-200/90 bg-white p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.45)] transition-all duration-200",
+        "max-w-full min-w-0 rounded-[28px] border border-slate-200/90 bg-white p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.45)] transition-all duration-200",
         className
       )}
     >

@@ -183,8 +183,8 @@ export function PriceTable({
 
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="w-full max-w-full overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
               {columns.map((col) => (
