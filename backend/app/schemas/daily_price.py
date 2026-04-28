@@ -20,6 +20,7 @@ class DailyPriceResponse(BaseModel):
     provider: str
     deep_link: str | None
     stops: int | None
+    stop_label: str | None = None
     duration_minutes: int | None
     scraped_at: datetime
 

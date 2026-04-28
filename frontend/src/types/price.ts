@@ -8,6 +8,7 @@ export interface DailyPrice {
   currency: string;
   provider: string;
   stops: number | null;
+  stop_label?: string | null;
   duration_minutes: number | null;
   scraped_at: string;
 }

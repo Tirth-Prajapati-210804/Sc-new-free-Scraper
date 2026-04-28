@@ -546,6 +546,7 @@ class PriceCollector:
                     provider,
                     deep_link,
                     stops,
+                    stop_label,
                     duration_minutes,
                     scraped_at
                 )
@@ -562,6 +563,7 @@ class PriceCollector:
                     :provider,
                     :deep_link,
                     :stops,
+                    :stop_label,
                     :duration_minutes,
                     now()
                 )
@@ -573,6 +575,7 @@ class PriceCollector:
                     provider = EXCLUDED.provider,
                     deep_link = EXCLUDED.deep_link,
                     stops = EXCLUDED.stops,
+                    stop_label = EXCLUDED.stop_label,
                     duration_minutes = EXCLUDED.duration_minutes,
                     scraped_at = now()
             """),
@@ -587,6 +590,11 @@ class PriceCollector:
                 "provider": result.provider or "unknown",
                 "deep_link": result.deep_link[:2048] if result.deep_link else None,
                 "stops": result.stops,
+                "stop_label": (
+                    str(result.raw_data.get("stop_result_label"))
+                    if isinstance(result.raw_data, dict) and result.raw_data.get("stop_result_label")
+                    else None
+                ),
                 "duration_minutes": result.duration_minutes,
             },
         )

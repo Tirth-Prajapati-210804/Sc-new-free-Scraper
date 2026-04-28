@@ -46,6 +46,7 @@ class DailyCheapestPrice(Base):
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     deep_link: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     stops: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stop_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

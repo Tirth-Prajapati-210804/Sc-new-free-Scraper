@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { DailyPrice } from "../types/price";
 import type { TripType } from "../types/route-group";
-import { formatRelativeTime } from "../utils/format";
+import { formatFreshnessLabel, formatRelativeTime } from "../utils/format";
 import { Button } from "./ui/Button";
 import { Skeleton } from "./ui/Skeleton";
 
@@ -21,7 +21,7 @@ const BASE_COLUMNS: Column[] = [
   { key: "duration_minutes", label: "Duration" },
   { key: "price", label: "Price", align: "right" },
   { key: "provider", label: "Provider" },
-  { key: "scraped_at", label: "Scraped At" },
+  { key: "scraped_at", label: "Freshness" },
 ];
 
 interface PriceTableProps {
@@ -40,6 +40,30 @@ function addDays(rawDate: string, days: number): string {
   const value = new Date(`${rawDate}T00:00:00`);
   value.setDate(value.getDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function formatStopResult(price: DailyPrice): { label: string; tone: string } {
+  const explicit = price.stop_label?.trim();
+  if (explicit) {
+    if (explicit.toLowerCase().includes("direct")) {
+      return { label: explicit, tone: "text-green-600" };
+    }
+    if (explicit.toLowerCase().includes("unavailable")) {
+      return { label: explicit, tone: "text-amber-600" };
+    }
+    return { label: explicit, tone: "text-slate-700" };
+  }
+
+  if (price.stops == null) {
+    return { label: "-", tone: "text-slate-500" };
+  }
+  if (price.stops === 0) {
+    return { label: "Direct", tone: "text-green-600" };
+  }
+  return {
+    label: `${price.stops} stop${price.stops > 1 ? "s" : ""}`,
+    tone: "text-slate-700",
+  };
 }
 
 function HeaderCell({
@@ -106,6 +130,7 @@ export function PriceTable({
   const [sortKey, setSortKey] = useState<keyof DailyPrice>("depart_date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const isMultiCity = tripType === "multi_city";
+
   const columns = useMemo(() => {
     if (!isMultiCity) {
       return BASE_COLUMNS;
@@ -127,7 +152,6 @@ export function PriceTable({
       setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
       return;
     }
-
     setSortKey(key);
     setSortDir("asc");
   }
@@ -177,63 +201,61 @@ export function PriceTable({
           </thead>
 
           <tbody>
-            {sorted.map((price, i) => (
-              <tr
-                key={price.id}
-                className={`transition-colors hover:bg-brand-50/40 ${
-                  i % 2 !== 0 ? "bg-slate-50/50" : ""
-                }`}
-              >
-                <td className="whitespace-nowrap px-6 py-3 text-slate-700">{price.depart_date}</td>
-                <td className="whitespace-nowrap px-6 py-3 font-medium text-slate-800">
-                  <span className="rounded-md bg-indigo-50 px-2 py-1 font-mono text-xs font-semibold text-brand-700">
-                    {price.origin}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
-                  <span className="rounded-md bg-emerald-50 px-2 py-1 font-mono text-xs font-semibold text-emerald-700">
-                    {price.destination}
-                  </span>
-                </td>
-                {isMultiCity ? (
-                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">
-                    <span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-semibold text-amber-700">
-                      {returnOrigin || "-"}
+            {sorted.map((price, i) => {
+              const stopResult = formatStopResult(price);
+              return (
+                <tr
+                  key={price.id}
+                  className={`transition-colors hover:bg-brand-50/40 ${
+                    i % 2 !== 0 ? "bg-slate-50/50" : ""
+                  }`}
+                >
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">{price.depart_date}</td>
+                  <td className="whitespace-nowrap px-6 py-3 font-medium text-slate-800">
+                    <span className="rounded-md bg-indigo-50 px-2 py-1 font-mono text-xs font-semibold text-brand-700">
+                      {price.origin}
                     </span>
                   </td>
-                ) : null}
-                {isMultiCity ? (
                   <td className="whitespace-nowrap px-6 py-3 text-slate-700">
-                    {addDays(price.depart_date, nights)}
+                    <span className="rounded-md bg-emerald-50 px-2 py-1 font-mono text-xs font-semibold text-emerald-700">
+                      {price.destination}
+                    </span>
                   </td>
-                ) : null}
-                <td className="min-w-[16rem] px-6 py-3 text-slate-700">{price.airline}</td>
-                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
-                  {price.stops == null ? (
-                    "-"
-                  ) : price.stops === 0 ? (
-                    <span className="font-medium text-green-600">Direct</span>
-                  ) : (
-                    `${price.stops} stop${price.stops > 1 ? "s" : ""}`
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-6 py-3 text-slate-700">
-                  {price.duration_minutes == null
-                    ? "-"
-                    : `${Math.floor(price.duration_minutes / 60)}h ${price.duration_minutes % 60}m`}
-                </td>
-                <td className="whitespace-nowrap px-6 py-3 text-right font-medium text-slate-900">
-                  {Math.round(price.price).toLocaleString()}{" "}
-                  <span className="text-xs text-slate-400">
-                    {groupCurrency ?? price.currency}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-6 py-3 capitalize text-slate-500">{price.provider}</td>
-                <td className="whitespace-nowrap px-6 py-3 text-slate-400">
-                  {formatRelativeTime(price.scraped_at)}
-                </td>
-              </tr>
-            ))}
+                  {isMultiCity ? (
+                    <td className="whitespace-nowrap px-6 py-3 text-slate-700">
+                      <span className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs font-semibold text-amber-700">
+                        {returnOrigin || "-"}
+                      </span>
+                    </td>
+                  ) : null}
+                  {isMultiCity ? (
+                    <td className="whitespace-nowrap px-6 py-3 text-slate-700">
+                      {addDays(price.depart_date, nights)}
+                    </td>
+                  ) : null}
+                  <td className="min-w-[16rem] px-6 py-3 text-slate-700">{price.airline}</td>
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">
+                    <span className={`font-medium ${stopResult.tone}`}>{stopResult.label}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-700">
+                    {price.duration_minutes == null
+                      ? "-"
+                      : `${Math.floor(price.duration_minutes / 60)}h ${price.duration_minutes % 60}m`}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 text-right font-medium text-slate-900">
+                    {Math.round(price.price).toLocaleString()}{" "}
+                    <span className="text-xs text-slate-400">{groupCurrency ?? price.currency}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 capitalize text-slate-500">{price.provider}</td>
+                  <td className="whitespace-nowrap px-6 py-3 text-slate-400">
+                    <div className="font-medium text-slate-600">
+                      {formatFreshnessLabel(price.scraped_at)}
+                    </div>
+                    <div className="text-xs text-slate-400">{formatRelativeTime(price.scraped_at)}</div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
