@@ -15,7 +15,7 @@ from app.core.redaction import redact_text
 from app.models.all_flight_result import AllFlightResult
 from app.models.scrape_log import ScrapeLog
 from app.providers.base import FlightProvider, ProviderResult
-from app.providers.searchapi import (
+from app.providers.kayak import (
     ProviderAuthError,
     ProviderQuotaExhaustedError,
     ProviderRateLimitedError,

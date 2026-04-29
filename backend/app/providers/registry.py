@@ -5,12 +5,11 @@ from time import monotonic
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.providers.base import FlightProvider
-from app.providers.searchapi import (
+from app.providers.kayak import (
+    KayakProvider,
     ProviderAuthError,
     ProviderQuotaExhaustedError,
     ProviderRateLimitedError,
-    SearchApiPoolProvider,
-    SearchApiProvider,
 )
 
 log = get_logger(__name__)
@@ -42,24 +41,16 @@ class ProviderRegistry:
             self.providers["demo"] = MockProvider()
 
         else:
-            searchapi_keys = settings.get_searchapi_keys()
-            if searchapi_keys:
-                provider_cls = (
-                    SearchApiProvider
-                    if len(searchapi_keys) == 1
-                    else SearchApiPoolProvider
-                )
-                provider_kwargs = (
-                    {"api_key": searchapi_keys[0]}
-                    if len(searchapi_keys) == 1
-                    else {"api_keys": searchapi_keys}
-                )
-                self.providers["searchapi"] = provider_cls(
-                    **provider_kwargs,
+            if settings.kayak_api_key:
+                self.providers["kayak"] = KayakProvider(
+                    api_key=settings.kayak_api_key,
+                    base_url=settings.kayak_base_url,
                     timeout=settings.provider_timeout_seconds,
                     max_retries=settings.provider_max_retries,
-                    concurrency_limit=settings.provider_concurrency_limit,
-                    min_delay_seconds=settings.provider_min_delay_seconds,
+                    poll_timeout_seconds=settings.kayak_poll_timeout_seconds,
+                    poll_interval_seconds=settings.kayak_poll_interval_seconds,
+                    user_agent=settings.kayak_user_agent,
+                    original_client_ip=settings.kayak_original_client_ip,
                 )
 
     # --------------------------------------------------
@@ -171,11 +162,11 @@ class ProviderRegistry:
         if self._demo_mode:
             return {
                 "demo": "active",
-                "searchapi": "disabled",
+                "kayak": "disabled",
             }
 
         result: dict[str, str] = {
-            "searchapi": "disabled",
+            "kayak": "disabled",
         }
 
         for name, provider in self.providers.items():

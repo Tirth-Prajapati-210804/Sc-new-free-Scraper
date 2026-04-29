@@ -34,5 +34,7 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      - key: SEARCHAPI_KEY
+      - key: KAYAK_API_KEY
+        sync: false
+      - key: KAYAK_BASE_URL
         sync: false

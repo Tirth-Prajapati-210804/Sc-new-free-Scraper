@@ -44,18 +44,18 @@ def _enforce_scrape_rate_limit(request: Request, user: User, scope: str) -> None
 
 def _provider_unavailable_detail(registry) -> str:
     provider_status = registry.status()
-    searchapi_status = provider_status.get("searchapi")
+    kayak_status = provider_status.get("kayak")
 
-    if searchapi_status == "quota_exhausted":
-        return "SearchAPI quota is exhausted. Add more SearchApi.io quota before triggering collection again."
-    if searchapi_status == "auth_error":
-        return "SearchAPI authentication failed. Check your SEARCHAPI_KEY or SEARCHAPI_KEYS before triggering collection again."
-    if searchapi_status == "rate_limited":
-        return "SearchAPI is temporarily rate limited. Wait for the cooldown and try again."
-    if searchapi_status in {"cooldown", "error"}:
-        return "SearchAPI is temporarily unavailable after recent provider failures. Check provider status and collection logs."
+    if kayak_status == "quota_exhausted":
+        return "KAYAK API quota is exhausted. Add more quota before triggering collection again."
+    if kayak_status == "auth_error":
+        return "KAYAK API authentication failed. Check your KAYAK_API_KEY before triggering collection again."
+    if kayak_status == "rate_limited":
+        return "KAYAK API is temporarily rate limited. Wait for the cooldown and try again."
+    if kayak_status in {"cooldown", "error", "provider_error"}:
+        return "KAYAK API is temporarily unavailable after recent provider failures. Check provider status and collection logs."
 
-    return "No flight data provider is configured. Add SEARCHAPI_KEY or SEARCHAPI_KEYS to your .env file, or enable DEMO_MODE=true to use demo data."
+    return "No flight data provider is configured. Add KAYAK_API_KEY to your .env file, or enable DEMO_MODE=true to use demo data."
 
 
 async def _get_accessible_group(

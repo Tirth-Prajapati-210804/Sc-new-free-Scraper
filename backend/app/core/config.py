@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     admin_full_name: str = "System Admin"
 
     # Provider API keys (empty = disabled)
+    kayak_api_key: str = ""
+    kayak_base_url: str = "https://sandbox-en-us.kayakaffiliates.com"
+    kayak_poll_timeout_seconds: int = 90
+    kayak_poll_interval_seconds: float = 2.0
+    kayak_user_agent: str = "flight-harvester/1.0"
+    kayak_original_client_ip: str = ""
     searchapi_key: str = ""
     searchapi_keys: str = ""
     demo_mode: bool = False
@@ -86,9 +92,9 @@ class Settings(BaseSettings):
             return json.dumps(v)
         return str(v)
 
-    @field_validator("searchapi_key", mode="before")
+    @field_validator("searchapi_key", "kayak_api_key", "kayak_base_url", "kayak_user_agent", "kayak_original_client_ip", mode="before")
     @classmethod
-    def normalize_searchapi_key(cls, v: object) -> str:
+    def normalize_provider_string(cls, v: object) -> str:
         return str(v).strip()
 
     @field_validator("cors_origins")
