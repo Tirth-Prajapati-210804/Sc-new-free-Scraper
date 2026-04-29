@@ -367,6 +367,6 @@ async def test_round_trip_calls_search_round_trip_with_return_date() -> None:
     provider.search_one_way.assert_not_awaited()
     kwargs = provider.search_round_trip.call_args.kwargs
     assert kwargs["depart_date"] == DEPART
-    assert kwargs["return_date"] == DEPART + timedelta(days=10)
+    assert kwargs["return_date"] == DEPART + timedelta(days=11)
     assert result.cheapest is not None
     assert result.cheapest.price == 2400

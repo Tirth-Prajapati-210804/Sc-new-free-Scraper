@@ -25,6 +25,11 @@ from app.utils.airline_codes import normalize_airline
 log = get_logger(__name__)
 
 
+def _derive_return_date(depart_date: date, nights: int) -> date:
+    """Interpret nights as nights stayed, so return is on the next calendar day."""
+    return depart_date + timedelta(days=max(1, nights) + 1)
+
+
 def _classify_exception(exc: BaseException) -> str:
     if isinstance(exc, ProviderQuotaExhaustedError):
         return "quota_exhausted"
@@ -158,7 +163,7 @@ class PriceCollector:
                         if not return_origin:
                             raise RuntimeError("multi_city collection requires a return origin.")
 
-                        return_date = depart_date + timedelta(days=stay_nights)
+                        return_date = _derive_return_date(depart_date, stay_nights)
                         results, stop_label = await self._search_multi_city_with_fallback(
                             provider=provider,
                             origin=origin,
@@ -171,7 +176,7 @@ class PriceCollector:
 
                     elif trip_type == "round_trip":
                         stay_nights = nights or 3
-                        return_date = depart_date + timedelta(days=stay_nights)
+                        return_date = _derive_return_date(depart_date, stay_nights)
                         if max_stops == 3:
                             results, stop_label = await self._search_round_trip_with_fallback(
                                 provider=provider,

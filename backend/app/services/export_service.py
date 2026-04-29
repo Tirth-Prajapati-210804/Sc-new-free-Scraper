@@ -317,8 +317,16 @@ def _export_multi_city_route_group(
         return output.read()
 
     sheet_name_map = route_group.sheet_name_map or {o: o for o in route_group.origins}
-    rows_by_origin: dict[str, list[AllFlightResult]] = {origin: [] for origin in route_group.origins}
+
+    cheapest_by_origin_date: dict[tuple[str, object], AllFlightResult] = {}
     for row in itinerary_rows:
+        key = (row.origin, row.depart_date)
+        current = cheapest_by_origin_date.get(key)
+        if current is None or float(row.price) < float(current.price):
+            cheapest_by_origin_date[key] = row
+
+    rows_by_origin: dict[str, list[AllFlightResult]] = {origin: [] for origin in route_group.origins}
+    for row in cheapest_by_origin_date.values():
         rows_by_origin.setdefault(row.origin, []).append(row)
 
     itinerary_prices_by_origin: dict[str, list[float]] = {}
