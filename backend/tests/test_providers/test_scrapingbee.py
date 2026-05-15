@@ -305,6 +305,14 @@ async def test_multi_city_uses_native_kayak_search(provider: ScrapingBeeProvider
     assert results[0].raw_data["return_date"] == (DEPART + timedelta(days=11)).isoformat()
 
 
+def test_multi_city_js_scenario_prefers_deepest_card_root(provider: ScrapingBeeProvider) -> None:
+    scenario = json.dumps(provider._build_multi_city_results_scenario(deep=False))
+
+    assert "card.contains(other)" in scenario
+    assert "other.contains(card)" not in scenario
+    assert 'a[href*=\\"/book/\\"]' in scenario
+
+
 @pytest.mark.asyncio
 async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
     provider: ScrapingBeeProvider,
