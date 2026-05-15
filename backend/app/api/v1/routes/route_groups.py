@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import date as date_type
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -99,6 +100,58 @@ async def export_group(group_id: uuid.UUID, session: _DB, current_user: _Auth) -
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename}"},
     )
+
+
+@router.get("/{group_id}/results")
+async def list_group_results(
+    group_id: uuid.UUID,
+    session: _DB,
+    current_user: _Auth,
+    depart_date: date_type | None = Query(default=None),
+    origin: str | None = Query(default=None, min_length=2, max_length=4),
+    destination: str | None = Query(default=None, min_length=2, max_length=4),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict]:
+    group = await route_group_service.get_by_id(session, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Route group not found")
+
+    q = select(AllFlightResult).where(AllFlightResult.route_group_id == group_id)
+
+    if depart_date:
+        q = q.where(AllFlightResult.depart_date == depart_date)
+    if origin:
+        q = q.where(AllFlightResult.origin == origin.upper())
+    if destination:
+        q = q.where(AllFlightResult.destination == destination.upper())
+
+    q = q.order_by(
+        AllFlightResult.depart_date.asc(),
+        AllFlightResult.price.asc(),
+        AllFlightResult.scraped_at.asc(),
+    ).limit(limit)
+
+    result = await session.execute(q)
+    rows = result.scalars().all()
+    return [
+        {
+            "id": str(row.id),
+            "origin": row.origin,
+            "destination": row.destination,
+            "depart_date": row.depart_date.isoformat(),
+            "airline": row.airline,
+            "price": row.price,
+            "currency": row.currency,
+            "provider": row.provider,
+            "deep_link": row.deep_link,
+            "stops": row.stops,
+            "stop_label": row.stop_label,
+            "duration_minutes": row.duration_minutes,
+            "itinerary_data": row.itinerary_data,
+            "scraped_at": row.scraped_at.isoformat() if row.scraped_at else None,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{group_id}/progress", response_model=RouteGroupProgress)

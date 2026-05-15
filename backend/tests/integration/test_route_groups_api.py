@@ -55,6 +55,55 @@ async def test_export_route_group_returns_excel_file(auth_client, db_session_fac
 
 
 @pytest.mark.asyncio
+async def test_list_route_group_results_returns_itinerary_data(auth_client, db_session_factory):
+    from datetime import date
+
+    from app.models.all_flight_result import AllFlightResult
+
+    create_res = await auth_client.post("/api/v1/route-groups/", json=VALID_GROUP)
+    group_id = create_res.json()["id"]
+
+    async with db_session_factory() as session:
+        session.add(
+            AllFlightResult(
+                route_group_id=UUID(group_id),
+                origin="YVR",
+                destination="SGN",
+                depart_date=date(2026, 5, 1),
+                airline="Cathay Pacific",
+                price=991.0,
+                currency="USD",
+                provider="scrapingbee",
+                deep_link="https://example.com/book/1",
+                stops=1,
+                duration_minutes=1242,
+                itinerary_data={
+                    "trip_type": "multi_city",
+                    "price_text": "$991",
+                    "legs": [
+                        {"time_text": "1:25 am - 3:00 pm+1", "route_text": "YVR-DPS"},
+                        {"time_text": "6:00 pm - 9:50 pm", "route_text": "SIN-YVR"},
+                    ],
+                },
+            )
+        )
+        await session.commit()
+
+    res = await auth_client.get(
+        f"/api/v1/route-groups/{group_id}/results",
+        params={"depart_date": "2026-05-01", "origin": "yvr"},
+    )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["airline"] == "Cathay Pacific"
+    assert data[0]["price"] == 991.0
+    assert data[0]["itinerary_data"]["price_text"] == "$991"
+    assert data[0]["itinerary_data"]["legs"][0]["time_text"] == "1:25 am - 3:00 pm+1"
+
+
+@pytest.mark.asyncio
 async def test_create_route_group(auth_client):
     res = await auth_client.post("/api/v1/route-groups/", json=VALID_GROUP)
     assert res.status_code == 201
