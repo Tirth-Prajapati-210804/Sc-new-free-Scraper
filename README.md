@@ -116,14 +116,14 @@ Recommended backend values:
 
 - `DEMO_MODE=false`
 - `SCHEDULER_ENABLED=true`
-- `ALLOWED_HOSTS=*.onrender.com,*.vercel.app`
+- `ALLOWED_HOSTS` = your exact backend hostnames, for example `flight-harvester-backend.onrender.com`
 - `SCRAPINGBEE_COUNTRY_CODE=us`
 
 Provider notes:
 
-- ScrapingBee's official docs require JSON-stringified `extract_rules` for GET requests, and the Google Flights example uses `custom_google`, JavaScript rendering, and a `js_scenario` to load cards before extraction.
+- ScrapingBee uses JavaScript-rendered KAYAK result pages, so keep `PROVIDER_CONCURRENCY_LIMIT` conservative and validate the live scraper after major KAYAK UI changes.
 - ScrapingBee documents `401` as "No more credit available" and `429` as "Too many concurrent requests", so keep `PROVIDER_CONCURRENCY_LIMIT` conservative and monitor remaining credits.
-- ScrapingBee's official Google Flights guide extracts individual cards with the `li.pIav2d` selector. Validate the live scraper after Google Flights UI changes.
+- Route groups can now choose both `currency` and `market`, so set the client's preferred market per group rather than relying only on currency.
 
 ### Vercel frontend
 
