@@ -54,10 +54,6 @@ export function ProviderStatus({
           <p className="text-[15px] font-semibold text-slate-900">
             Provider Status
           </p>
-
-          <p className="text-sm text-slate-500">
-            Live backend integrations
-          </p>
         </div>
 
         <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
