@@ -96,6 +96,8 @@ _CURRENCY_BY_PRICE_TOKEN = {
     "US$": "USD",
 }
 _ALLOWED_MARKETS = {"us", "ca"}
+_FAST_MULTI_CITY_CARD_LIMIT = 90
+_DEEP_MULTI_CITY_CARD_LIMIT = 180
 
 
 def _clean_text(value: object) -> str:
@@ -621,9 +623,24 @@ class ScrapingBeeProvider:
         )
 
     def _build_multi_city_results_scenario(self, *, deep: bool = False) -> dict[str, object]:
-        card_limit = 120 if deep else 60
+        card_limit = _DEEP_MULTI_CITY_CARD_LIMIT if deep else _FAST_MULTI_CITY_CARD_LIMIT
+        click_cheapest_script = (
+            "(()=>{"
+            "const norm=v=>(v||'').replace(/\\s+/g,' ').trim().toLowerCase();"
+            "const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect();"
+            "return r.width>0&&r.height>0&&window.getComputedStyle(el).visibility!=='hidden';};"
+            "const pick=Array.from(document.querySelectorAll('button,a,[role=\"button\"],div,span'))"
+            ".filter(el=>visible(el)&&/^cheapest(?:\\s|$)/.test(norm(el.innerText||el.getAttribute('aria-label')||'')));"
+            "if(!pick.length)return false;"
+            "const target=pick[0].closest('button,a,[role=\"button\"]')||pick[0];"
+            "target.click();"
+            "return true;"
+            "})()"
+        )
         script = (
             "JSON.stringify({card_count:document.querySelectorAll('div[aria-label^=\"Result item\"]').length,"
+            "captured_count:Array.from(document.querySelectorAll('div[aria-label^=\"Result item\"]')).slice(0,"
+            f"{card_limit}).length,"
             "cards:Array.from(document.querySelectorAll('div[aria-label^=\"Result item\"]'))"
             f".slice(0,{card_limit})"
             ".map(card=>({"
@@ -647,26 +664,36 @@ class ScrapingBeeProvider:
             return {
                 "strict": False,
                 "instructions": [
-                    {"wait": 8_000},
-                    {"evaluate": "window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.65));"},
+                    {"wait": 6_500},
+                    {"evaluate": click_cheapest_script},
                     {"wait": 2_000},
-                    {"evaluate": "window.scrollTo(0, document.body.scrollHeight);"},
-                    {"wait": 2_500},
+                    {"evaluate": "window.scrollBy(0, 1200);"},
+                    {"wait": 1_500},
+                    {"evaluate": click_cheapest_script},
+                    {"evaluate": "window.scrollBy(0, 1800);"},
+                    {"wait": 1_500},
+                    {"evaluate": "window.scrollBy(0, 2200);"},
+                    {"wait": 2_000},
                     {"evaluate": script},
                 ],
             }
         return {
             "strict": False,
             "instructions": [
-                {"wait": 12_000},
-                {"evaluate": "window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.35));"},
-                {"wait": 2_500},
-                {"evaluate": "window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.7));"},
-                {"wait": 2_500},
-                {"evaluate": "window.scrollTo(0, document.body.scrollHeight);"},
-                {"wait": 3_500},
-                {"evaluate": "window.scrollTo(0, document.body.scrollHeight);"},
-                {"wait": 3_500},
+                {"wait": 8_000},
+                {"evaluate": click_cheapest_script},
+                {"wait": 2_000},
+                {"evaluate": "window.scrollBy(0, 1200);"},
+                {"wait": 1_500},
+                {"evaluate": "window.scrollBy(0, 1800);"},
+                {"wait": 1_500},
+                {"evaluate": click_cheapest_script},
+                {"evaluate": "window.scrollBy(0, 2400);"},
+                {"wait": 1_500},
+                {"evaluate": "window.scrollBy(0, 2800);"},
+                {"wait": 1_500},
+                {"evaluate": "window.scrollBy(0, 3200);"},
+                {"wait": 2_000},
                 {"evaluate": script},
             ],
         }
@@ -678,25 +705,29 @@ class ScrapingBeeProvider:
         currency: str,
         deep_link: str,
         market_country_code: str,
-    ) -> tuple[list[ProviderResult], int]:
+    ) -> tuple[list[ProviderResult], int, int]:
         evaluate_results = rendered.get("evaluate_results")
         if not isinstance(evaluate_results, list) or not evaluate_results:
-            return [], 0
+            return [], 0, 0
 
         cards_payload_raw = evaluate_results[0]
         if not isinstance(cards_payload_raw, str):
-            return [], 0
+            return [], 0, 0
 
         try:
             cards_payload = await asyncio.to_thread(json.loads, cards_payload_raw)
         except json.JSONDecodeError:
-            return [], 0
+            return [], 0, 0
 
         card_count = 0
+        captured_count = 0
         if isinstance(cards_payload, dict):
             raw_count = cards_payload.get("card_count")
             if isinstance(raw_count, int) and raw_count >= 0:
                 card_count = raw_count
+            raw_captured_count = cards_payload.get("captured_count")
+            if isinstance(raw_captured_count, int) and raw_captured_count >= 0:
+                captured_count = raw_captured_count
 
         results = await asyncio.to_thread(
             self._normalize_multi_city_cards,
@@ -705,7 +736,16 @@ class ScrapingBeeProvider:
             deep_link=deep_link,
             market_country_code=market_country_code,
         )
-        return results, card_count
+        return results, card_count, captured_count
+
+    def _filter_results_by_stops(
+        self,
+        results: list[ProviderResult],
+        max_stops: int | None,
+    ) -> list[ProviderResult]:
+        if max_stops is None:
+            return results
+        return [result for result in results if result.stops <= max_stops]
 
     def _annotate_multi_city_results(
         self,
@@ -1036,6 +1076,7 @@ class ScrapingBeeProvider:
         *,
         market: str | None = None,
         currency: str = "USD",
+        max_stops: int | None = None,
     ) -> list[ProviderResult]:
         if self._quota_blocked():
             raise ProviderQuotaExhaustedError("ScrapingBee quota cooldown active.")
@@ -1071,19 +1112,28 @@ class ScrapingBeeProvider:
             js_scenario=self._build_multi_city_results_scenario(deep=False),
             country_code=market_country_code,
         )
-        results, card_count = await self._parse_multi_city_rendered_payload(
+        results, card_count, captured_count = await self._parse_multi_city_rendered_payload(
             rendered,
             currency=currency,
             deep_link=target_url,
             market_country_code=market_country_code,
         )
-        if not results and card_count < 20:
+        eligible_results = self._filter_results_by_stops(results, max_stops)
+        needs_deep_pass = not results or not eligible_results
+        if (
+            not needs_deep_pass
+            and captured_count >= _FAST_MULTI_CITY_CARD_LIMIT
+            and card_count > captured_count
+            and len(eligible_results) < 5
+        ):
+            needs_deep_pass = True
+        if needs_deep_pass:
             rendered = await self._get_rendered_payload(
                 target_url,
                 js_scenario=self._build_multi_city_results_scenario(deep=True),
                 country_code=market_country_code,
             )
-            results, _ = await self._parse_multi_city_rendered_payload(
+            results, _, _ = await self._parse_multi_city_rendered_payload(
                 rendered,
                 currency=currency,
                 deep_link=target_url,
@@ -1211,10 +1261,11 @@ class ScrapingBeeProvider:
                     legs=legs,
                     market=market,
                     currency=currency,
+                    max_stops=max_stops,
                 )
                 if max_stops is None:
                     return results
-                return [result for result in results if result.stops <= max_stops]
+                return self._filter_results_by_stops(results, max_stops)
 
         return []
 
