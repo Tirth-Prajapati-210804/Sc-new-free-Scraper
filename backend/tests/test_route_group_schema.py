@@ -16,6 +16,7 @@ def test_route_group_create_normalizes_codes_and_currency() -> None:
         origins=["yvr"],
         nights=10,
         days_ahead=30,
+        market="CA",
         currency="usd",
     )
 
@@ -23,6 +24,7 @@ def test_route_group_create_normalizes_codes_and_currency() -> None:
     assert payload.destination_label == "Japan"
     assert payload.destinations == ["NRT", "HND"]
     assert payload.origins == ["YVR"]
+    assert payload.market == "ca"
     assert payload.currency == "USD"
 
 
@@ -36,6 +38,20 @@ def test_route_group_rejects_invalid_currency() -> None:
             nights=7,
             days_ahead=30,
             currency="USDX",
+        )
+
+
+def test_route_group_rejects_invalid_market() -> None:
+    with pytest.raises(ValidationError):
+        RouteGroupCreate(
+            name="Bad market",
+            destination_label="Japan",
+            destinations=["NRT"],
+            origins=["YVR"],
+            nights=7,
+            days_ahead=30,
+            market="in",
+            currency="USD",
         )
 
 

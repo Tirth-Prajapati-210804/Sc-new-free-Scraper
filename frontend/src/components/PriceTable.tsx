@@ -37,8 +37,9 @@ interface PriceTableProps {
 }
 
 function addDays(rawDate: string, days: number): string {
-  const value = new Date(`${rawDate}T00:00:00`);
-  value.setDate(value.getDate() + days);
+  const [year, month, day] = rawDate.split("-").map(Number);
+  const value = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1));
+  value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
 }
 

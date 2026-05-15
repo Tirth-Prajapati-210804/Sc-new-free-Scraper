@@ -5,6 +5,18 @@ from datetime import date
 from typing import Protocol
 
 
+class ProviderQuotaExhaustedError(RuntimeError):
+    pass
+
+
+class ProviderAuthError(RuntimeError):
+    pass
+
+
+class ProviderRateLimitedError(RuntimeError):
+    pass
+
+
 @dataclass
 class ProviderResult:
     """One flight offer from a provider, already normalized."""

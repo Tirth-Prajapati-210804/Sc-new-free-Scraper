@@ -53,6 +53,7 @@ def test_redact_value_dict_sensitive_keys() -> None:
         "api_key": "secret123",
         "password": "hunter2",
         "serpapi_key": "serpkey",
+        "scrapingbee_api_key": "beekey",
         "database_url": "postgresql://user:pass@localhost/db",
         "normal_key": "visible",
     }
@@ -60,6 +61,7 @@ def test_redact_value_dict_sensitive_keys() -> None:
     assert result["api_key"] == "[REDACTED]"
     assert result["password"] == "[REDACTED]"
     assert result["serpapi_key"] == "[REDACTED]"
+    assert result["scrapingbee_api_key"] == "[REDACTED]"
     assert result["database_url"] == "[REDACTED]"
     assert result["normal_key"] == "visible"
 

@@ -25,7 +25,7 @@ services:
       - key: CORS_ORIGINS
         sync: false
       - key: ALLOWED_HOSTS
-        value: "*.onrender.com,*.vercel.app"
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
@@ -34,6 +34,16 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: SCRAPINGBEE_API_KEY
+        sync: false
+      - key: SCRAPINGBEE_API_KEYS
+        sync: false
+      - key: SCRAPINGBEE_COUNTRY_CODE
+        value: "us"
+      - key: SCRAPINGBEE_PREMIUM_PROXY
+        value: "false"
+      - key: SCRAPINGBEE_STEALTH_PROXY
+        value: "false"
       - key: KAYAK_API_KEY
         sync: false
       - key: KAYAK_BASE_URL

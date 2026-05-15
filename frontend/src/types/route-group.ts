@@ -1,4 +1,5 @@
 export type TripType = "one_way" | "round_trip" | "multi_city";
+export type RouteMarket = "us" | "ca";
 
 export interface RouteGroup {
   id: string;
@@ -12,6 +13,7 @@ export interface RouteGroup {
   sheet_name_map: Record<string, string>;
   special_sheets: SpecialSheet[];
   is_active: boolean;
+  market: RouteMarket;
   currency: string;
   max_stops: number | null;
   start_date: string | null;

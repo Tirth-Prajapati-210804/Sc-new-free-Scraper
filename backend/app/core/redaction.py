@@ -26,6 +26,8 @@ _SENSITIVE_KEYS = {
     "admin_password",
     "database_url",
     "serpapi_key",
+    "scrapingbee_api_key",
+    "scrapingbee_api_keys",
 }
 
 

@@ -4,13 +4,13 @@ from time import monotonic
 
 from app.core.config import Settings
 from app.core.logging import get_logger
-from app.providers.base import FlightProvider
-from app.providers.kayak import (
-    KayakProvider,
+from app.providers.base import (
+    FlightProvider,
     ProviderAuthError,
     ProviderQuotaExhaustedError,
     ProviderRateLimitedError,
 )
+from app.providers.scrapingbee import ScrapingBeePoolProvider
 
 log = get_logger(__name__)
 
@@ -41,16 +41,19 @@ class ProviderRegistry:
             self.providers["demo"] = MockProvider()
 
         else:
-            if settings.kayak_api_key:
-                self.providers["kayak"] = KayakProvider(
-                    api_key=settings.kayak_api_key,
-                    base_url=settings.kayak_base_url,
+            scrapingbee_keys = settings.get_scrapingbee_keys()
+            if scrapingbee_keys:
+                self.providers["scrapingbee"] = ScrapingBeePoolProvider(
+                    api_keys=scrapingbee_keys,
+                    base_url=settings.scrapingbee_base_url,
                     timeout=settings.provider_timeout_seconds,
                     max_retries=settings.provider_max_retries,
-                    poll_timeout_seconds=settings.kayak_poll_timeout_seconds,
-                    poll_interval_seconds=settings.kayak_poll_interval_seconds,
-                    user_agent=settings.kayak_user_agent,
-                    original_client_ip=settings.kayak_original_client_ip,
+                    concurrency_limit=settings.provider_concurrency_limit,
+                    min_delay_seconds=settings.provider_min_delay_seconds,
+                    country_code=settings.scrapingbee_country_code,
+                    premium_proxy=settings.scrapingbee_premium_proxy,
+                    stealth_proxy=settings.scrapingbee_stealth_proxy,
+                    user_agent=settings.scrapingbee_user_agent,
                 )
 
     # --------------------------------------------------
@@ -162,11 +165,11 @@ class ProviderRegistry:
         if self._demo_mode:
             return {
                 "demo": "active",
-                "kayak": "disabled",
+                "scrapingbee": "disabled",
             }
 
         result: dict[str, str] = {
-            "kayak": "disabled",
+            "scrapingbee": "disabled",
         }
 
         for name, provider in self.providers.items():

@@ -19,7 +19,7 @@ import {
 } from "../api/route-groups";
 import { getErrorMessage } from "../api/client";
 import { useToast } from "../context/ToastContext";
-import type { RouteGroup, SpecialSheet, TripType } from "../types/route-group";
+import type { RouteGroup, RouteMarket, SpecialSheet, TripType } from "../types/route-group";
 
 interface RouteGroupFormProps {
   open: boolean;
@@ -42,6 +42,7 @@ interface ManualState {
   extraLegs: ManualLeg[];
   nights: string;
   days: string;
+  market: RouteMarket;
   currency: string;
   startDate: string;
   endDate: string;
@@ -50,6 +51,10 @@ interface ManualState {
 }
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "SGD", "AED", "INR"];
+const MARKETS: Array<{ value: RouteMarket; label: string }> = [
+  { value: "us", label: "US" },
+  { value: "ca", label: "Canada" },
+];
 
 const TRIP_TYPES: Array<{
   id: UiTripType;
@@ -125,6 +130,7 @@ function buildInitialManualState(initial?: RouteGroup | null): ManualState {
       })) ?? [],
     nights: String(initial?.nights ?? 10),
     days: String(initial?.days_ahead ?? 365),
+    market: initial?.market ?? "us",
     currency: initial?.currency ?? "USD",
     startDate: initial?.start_date ?? "",
     endDate: initial?.end_date ?? "",
@@ -268,6 +274,8 @@ function StopSelector({
 function AdvancedSettings({
   currency,
   setCurrency,
+  market,
+  setMarket,
   startDate,
   setStartDate,
   endDate,
@@ -278,6 +286,8 @@ function AdvancedSettings({
 }: {
   currency: string;
   setCurrency: (value: string) => void;
+  market: RouteMarket;
+  setMarket: (value: RouteMarket) => void;
   startDate: string;
   setStartDate: (value: string) => void;
   endDate: string;
@@ -304,7 +314,17 @@ function AdvancedSettings({
       </button>
       {open ? (
         <div className="space-y-4 border-t border-slate-200 px-4 pb-4 pt-3">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <Label>Market</Label>
+              <SelectInput value={market} onChange={(e) => setMarket(e.target.value as RouteMarket)}>
+                {MARKETS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </div>
             <div>
               <Label>Currency</Label>
               <SelectInput value={currency} onChange={(e) => setCurrency(e.target.value)}>
@@ -580,6 +600,8 @@ function CustomBuilderForm({
       </div>
 
       <AdvancedSettings
+        market={state.market}
+        setMarket={(value) => patch("market", value)}
         currency={state.currency}
         setCurrency={(value) => patch("currency", value)}
         startDate={state.startDate}
@@ -726,6 +748,7 @@ export function RouteGroupForm({
         days_ahead: parsePositiveInt(manualState.days, 365),
         sheet_name_map: Object.fromEntries(mainOrigins.map((origin) => [origin, origin])),
         special_sheets: specialSheets,
+        market: manualState.market,
         currency: manualState.currency,
         max_stops: stopToApi(manualState.stops),
         start_date: manualState.startDate || null,

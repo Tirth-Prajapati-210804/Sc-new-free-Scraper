@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock
@@ -303,6 +304,54 @@ async def test_collect_route_batch_cooled_route_reports_skipped_progress() -> No
 
 
 @pytest.mark.asyncio
+async def test_collect_route_batch_cancels_inflight_scrape_when_stop_requested() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    provider = make_provider("serpapi", [make_result(1500)])
+    collector = PriceCollector(
+        session_factory=make_session_factory(session),
+        providers=[provider],
+    )
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def fake_collect_single_date(**kwargs):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    collector.collect_single_date = AsyncMock(side_effect=fake_collect_single_date)
+
+    stop_requested = False
+
+    batch_task = asyncio.create_task(
+        collector.collect_route_batch(
+            origin="YYZ",
+            destinations=["NRT"],
+            dates=[DEPART],
+            route_group_id=ROUTE_ID,
+            batch_size=1,
+            delay_seconds=0,
+            stop_check=lambda: stop_requested,
+        )
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=1)
+    stop_requested = True
+
+    stats = await asyncio.wait_for(batch_task, timeout=2)
+
+    assert stats == {"success": 0, "errors": 0, "skipped": 1}
+    assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
 async def test_upsert_cheapest_sends_correct_params() -> None:
     session = AsyncMock()
     session.execute = AsyncMock()
@@ -367,6 +416,6 @@ async def test_round_trip_calls_search_round_trip_with_return_date() -> None:
     provider.search_one_way.assert_not_awaited()
     kwargs = provider.search_round_trip.call_args.kwargs
     assert kwargs["depart_date"] == DEPART
-    assert kwargs["return_date"] == DEPART + timedelta(days=11)
+    assert kwargs["return_date"] == DEPART + timedelta(days=10)
     assert result.cheapest is not None
     assert result.cheapest.price == 2400

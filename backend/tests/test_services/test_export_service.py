@@ -42,6 +42,7 @@ def make_result(
     r.depart_date = depart_date or (date.today() + timedelta(days=1))
     r.price = price
     r.airline = airline
+    r.stop_label = ""
     return r
 
 
@@ -64,7 +65,8 @@ def test_export_has_correct_headers() -> None:
     assert ws.cell(1, 3).value == "Arrival Airport"
     assert ws.cell(1, 4).value == "Nights"
     assert ws.cell(1, 5).value == "Airline"
-    assert ws.cell(1, 6).value == "Flight Price"
+    assert ws.cell(1, 6).value == "Stop Result"
+    assert ws.cell(1, 7).value == "Flight Price"
 
 
 def test_export_destination_label_in_arrivel_column() -> None:
@@ -87,7 +89,7 @@ def test_export_prices_are_integers() -> None:
     rg = make_route_group()
     wb = openpyxl.load_workbook(BytesIO(export_route_group(rg, [make_result(price=199.75)])))
     ws = wb["YVR"]
-    assert ws.cell(2, 6).value == 200
+    assert ws.cell(2, 7).value == 200
 
 
 def test_export_cheapest_per_date() -> None:
@@ -100,7 +102,7 @@ def test_export_cheapest_per_date() -> None:
     ]
     wb = openpyxl.load_workbook(BytesIO(export_route_group(rg, results)))
     ws = wb["YVR"]
-    assert ws.cell(2, 6).value == 300
+    assert ws.cell(2, 7).value == 300
     assert ws.cell(2, 5).value == "VN"
 
 
@@ -110,7 +112,7 @@ def test_export_missing_date_shows_none_price() -> None:
     results = [make_result(origin="YVR", depart_date=today + timedelta(days=1), price=100.0)]
     wb = openpyxl.load_workbook(BytesIO(export_route_group(rg, results)))
     ws = wb["Toronto"]
-    assert ws.cell(2, 6).value is None
+    assert ws.cell(2, 7).value is None
 
 
 def test_export_special_sheet_4_columns() -> None:
@@ -146,7 +148,8 @@ def test_export_special_sheet_6_columns() -> None:
     ws = wb["Multi"]
     assert ws.cell(1, 4).value == "Nights"
     assert ws.cell(1, 5).value == "Airline"
-    assert ws.cell(1, 6).value == "Flight Price"
+    assert ws.cell(1, 6).value == "Stop Result"
+    assert ws.cell(1, 7).value == "Flight Price"
     assert ws.cell(2, 4).value == 7
     assert ws.cell(2, 5).value == "VN"
-    assert ws.cell(2, 6).value == 400
+    assert ws.cell(2, 7).value == 400

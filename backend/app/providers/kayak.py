@@ -9,21 +9,22 @@ import httpx
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from app.core.logging import get_logger
-from app.providers.base import ProviderResult
+from app.providers.base import (
+    ProviderAuthError,
+    ProviderQuotaExhaustedError,
+    ProviderRateLimitedError,
+    ProviderResult,
+)
 
 log = get_logger(__name__)
 
 
-class ProviderQuotaExhaustedError(RuntimeError):
-    pass
-
-
-class ProviderAuthError(RuntimeError):
-    pass
-
-
-class ProviderRateLimitedError(RuntimeError):
-    pass
+__all__ = [
+    "KayakProvider",
+    "ProviderAuthError",
+    "ProviderQuotaExhaustedError",
+    "ProviderRateLimitedError",
+]
 
 
 class KayakProvider:

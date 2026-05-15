@@ -35,6 +35,7 @@ _ROUTE_IDENTITY_FIELDS = (
     "days_ahead",
     "trip_type",
     "special_sheets",
+    "market",
     "currency",
     "max_stops",
     "start_date",
@@ -119,6 +120,7 @@ async def create(
         trip_type=data.trip_type,
         sheet_name_map=data.sheet_name_map or {o: o for o in data.origins},
         special_sheets=[s.model_dump() if hasattr(s, "model_dump") else s for s in (data.special_sheets or [])],
+        market=data.market,
         currency=data.currency,
         max_stops=data.max_stops,
         start_date=data.start_date,
@@ -256,8 +258,11 @@ async def get_progress(session: AsyncSession, group_id: uuid.UUID) -> RouteGroup
 def _group_dates(group: RouteGroup) -> list[date]:
     today = date.today()
 
-    start = group.start_date or today
+    configured_start = group.start_date or today
+    start = max(configured_start, today)
     end = group.end_date or (start + timedelta(days=min(group.days_ahead, 730)))
+    if end < start:
+        return []
     total_days = min((end - start).days + 1, 730)
 
     return [start + timedelta(days=i) for i in range(total_days)]

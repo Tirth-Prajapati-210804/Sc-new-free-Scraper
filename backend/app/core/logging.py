@@ -12,7 +12,7 @@ class _RedactingFilter(logging.Filter):
 
     httpx's INFO logger (and a handful of other libraries) write request URLs
     directly via the stdlib logger, bypassing structlog's processor chain.
-    Without this filter the SearchAPI api_key was being printed in plaintext
+    Without this filter provider api keys were being printed in plaintext
     on every request — a real secret leak. We re-run redact_text on the
     formatted message so the same patterns we strip from structlog events
     also catch stdlib output.
@@ -45,7 +45,7 @@ def configure_logging(debug: bool) -> None:
             handler.addFilter(_RedactingFilter())
 
     # httpx logs every outbound request at INFO with the full URL. We already
-    # emit structured `searchapi_*` events with non-sensitive fields, so the
+    # emit structured provider events with non-sensitive fields, so the
     # raw httpx line is pure noise and a secret-leak risk. Quiet it.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

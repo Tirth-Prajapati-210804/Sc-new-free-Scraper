@@ -43,7 +43,7 @@ export function ProviderStatus({
 
   const readyCount = providers.filter(
     ([, status]) =>
-      status === "configured"
+      status === "configured" || status === "active"
   ).length;
 
   return (
@@ -71,8 +71,7 @@ export function ProviderStatus({
         {providers.map(
           ([name, status]) => {
             const active =
-              status ===
-              "configured";
+              status === "configured" || status === "active";
 
             return (
               <div

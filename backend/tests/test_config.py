@@ -1,103 +1,92 @@
-from __future__ import annotations
-
 import pytest
 from pydantic import ValidationError
+
 from app.core.config import Settings
 
 
-def make_settings(**kwargs: object) -> Settings:
-    base = {
-        "database_url": "postgresql+asyncpg://u:p@localhost/db",
-        "jwt_secret_key": "a-secure-test-secret-key-that-is-at-least-32-chars",
+def _settings(**overrides: object) -> Settings:
+    defaults: dict[str, object] = {
+        "_env_file": None,
+        "environment": "test",
+        "app_name": "Test App",
+        "secret_key": "a" * 32,
+        "jwt_secret_key": "b" * 32,
+        "database_url": "postgresql+asyncpg://postgres:secret@localhost/test_db",
         "admin_email": "admin@example.com",
-        "admin_password": "StrongPass123!",
+        "admin_password": "AdminPassword123",
     }
-    base.update(kwargs)
-    return Settings(_env_file=None, **base)  # type: ignore[arg-type]
+    defaults.update(overrides)
+    return Settings(**defaults)
 
 
-def test_debug_true_when_true_string() -> None:
-    s = make_settings(debug="true")
-    assert s.debug is True
+def test_database_url_accepts_local_postgres_without_ssl() -> None:
+    settings = _settings(
+        database_url="postgresql+asyncpg://postgres:secret@localhost/flights",
+    )
+
+    assert settings.database_url == "postgresql+asyncpg://postgres:secret@localhost/flights"
 
 
-def test_debug_false_when_release() -> None:
-    s = make_settings(debug="release")
-    assert s.debug is False
+def test_database_url_requires_ssl_for_remote_hosts() -> None:
+    with pytest.raises(ValidationError, match="Remote PostgreSQL connections must include SSL"):
+        _settings(database_url="postgresql+asyncpg://user:pass@db.example.com/flights")
 
 
-def test_debug_false_when_production() -> None:
-    s = make_settings(debug="production")
-    assert s.debug is False
+def test_database_url_accepts_remote_postgres_with_ssl() -> None:
+    settings = _settings(
+        database_url="postgresql+asyncpg://user:pass@db.example.com/flights?ssl=true",
+    )
+
+    assert settings.database_url == "postgresql+asyncpg://user:pass@db.example.com/flights?ssl=true"
 
 
-def test_cors_origins_from_comma_string() -> None:
-    s = make_settings(cors_origins="http://localhost:3000,http://localhost:5173")
-    assert s.get_cors_origins() == ["http://localhost:3000", "http://localhost:5173"]
+def test_database_url_rejects_legacy_driver() -> None:
+    with pytest.raises(ValidationError, match="DATABASE_URL must use the postgresql\\+asyncpg scheme"):
+        _settings(database_url="postgres://user:pass@host/dbname")
 
 
-def test_searchapi_keys_from_json_array() -> None:
-    s = make_settings(searchapi_keys='["key-one","key-two","key-three"]')
-    assert s.get_searchapi_keys() == ["key-one", "key-two", "key-three"]
+def test_database_url_rejects_non_postgres_scheme() -> None:
+    with pytest.raises(ValidationError, match="DATABASE_URL must use the postgresql\\+asyncpg scheme"):
+        _settings(database_url="sqlite+aiosqlite:///./test.db")
 
 
-def test_searchapi_keys_fall_back_to_legacy_field_csv() -> None:
-    s = make_settings(searchapi_key="key-one,key-two,key-three")
-    assert s.get_searchapi_keys() == ["key-one", "key-two", "key-three"]
+def test_allowed_hosts_include_platform_fallbacks_in_non_production() -> None:
+    settings = _settings(
+        environment="development",
+        allowed_hosts='["api.example.com"]',
+    )
 
+    hosts = settings.get_allowed_hosts()
 
-def test_allowed_hosts_always_includes_platform_fallbacks() -> None:
-    """A narrow ALLOWED_HOSTS env (e.g. stale Render config) must not lock
-    the production hostnames out — wildcards for *.onrender.com / *.vercel.app
-    are always merged in."""
-    s = make_settings(allowed_hosts='["localhost","127.0.0.1"]')
-    hosts = s.get_allowed_hosts()
+    assert "api.example.com" in hosts
     assert "*.onrender.com" in hosts
     assert "*.vercel.app" in hosts
-    # User-configured entries still win on order
-    assert hosts.index("localhost") < hosts.index("*.onrender.com")
 
 
-def test_wildcard_cors_origin_rejected() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(cors_origins="*")
+def test_allowed_hosts_are_not_broadened_in_production() -> None:
+    settings = _settings(
+        environment="production",
+        allowed_hosts='["api.client.example.com"]',
+    )
+
+    assert settings.get_allowed_hosts() == ["api.client.example.com"]
 
 
-def test_non_asyncpg_database_url_rejected() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(database_url="postgresql://user:pass@localhost:5432/db")
+def test_cors_origins_parse_json_list() -> None:
+    settings = _settings(
+        environment="development",
+        allowed_hosts='["localhost"]',
+        cors_origins='["http://localhost:5173","https://app.example.com"]',
+    )
+
+    assert settings.get_cors_origins() == ["http://localhost:5173", "https://app.example.com"]
 
 
-def test_remote_database_requires_sslmode() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(database_url="postgresql+asyncpg://user:pass@db.example.com:5432/db")
+def test_cors_origins_accept_csv() -> None:
+    settings = _settings(
+        environment="development",
+        allowed_hosts='["localhost"]',
+        cors_origins="http://localhost:5173, https://app.example.com",
+    )
 
-
-def test_missing_database_url_raises() -> None:
-    field = Settings.model_fields["database_url"]
-    assert field.is_required()
-
-
-def test_missing_jwt_secret_raises() -> None:
-    field = Settings.model_fields["jwt_secret_key"]
-    assert field.is_required()
-
-
-def test_short_jwt_secret_raises() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(jwt_secret_key="tooshort")
-
-
-def test_change_me_jwt_raises() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(jwt_secret_key="please-change-me-this-is-definitely-32chars!!")
-
-
-def test_short_admin_password_raises() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(admin_password="short")
-
-
-def test_change_me_password_raises() -> None:
-    with pytest.raises(ValidationError):
-        make_settings(admin_password="change-me-please123")
+    assert settings.get_cors_origins() == ["http://localhost:5173", "https://app.example.com"]

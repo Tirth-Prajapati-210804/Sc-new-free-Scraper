@@ -14,11 +14,12 @@ from app.core.logging import get_logger
 from app.core.redaction import redact_text
 from app.models.all_flight_result import AllFlightResult
 from app.models.scrape_log import ScrapeLog
-from app.providers.base import FlightProvider, ProviderResult
-from app.providers.kayak import (
+from app.providers.base import (
+    FlightProvider,
     ProviderAuthError,
     ProviderQuotaExhaustedError,
     ProviderRateLimitedError,
+    ProviderResult,
 )
 from app.utils.airline_codes import normalize_airline
 
@@ -26,8 +27,11 @@ log = get_logger(__name__)
 
 
 def _derive_return_date(depart_date: date, nights: int) -> date:
-    """Interpret nights as nights stayed, so return is on the next calendar day."""
-    return depart_date + timedelta(days=max(1, nights) + 1)
+    """
+    Return on the morning *after* the Nth night.
+    Depart Apr 1 + 12 nights = Apr 13 (slept 12 nights, fly home on the 13th).
+    """
+    return depart_date + timedelta(days=max(1, nights))
 
 
 def _classify_exception(exc: BaseException) -> str:
@@ -131,6 +135,16 @@ class PriceCollector:
         if fails >= 3:
             self._route_cooldown[key] = min(fails * 2, 12)
 
+    def _provider_search_kwargs(
+        self,
+        provider: FlightProvider,
+        *,
+        market: str | None,
+    ) -> dict[str, str]:
+        if market and getattr(provider, "name", "") == "scrapingbee":
+            return {"market": market}
+        return {}
+
     # --------------------------------------------------
     # SINGLE SEARCH
     # --------------------------------------------------
@@ -141,6 +155,7 @@ class PriceCollector:
         destination: str,
         depart_date: date,
         route_group_id: UUID | None,
+        market: str | None = None,
         currency: str = "USD",
         max_stops: int | None = None,
         trip_type: str = "one_way",
@@ -172,6 +187,7 @@ class PriceCollector:
                             return_origin=return_origin,
                             return_date=return_date,
                             currency=currency,
+                            market=market,
                         )
 
                     elif trip_type == "round_trip":
@@ -185,6 +201,7 @@ class PriceCollector:
                                 depart_date=depart_date,
                                 return_date=return_date,
                                 currency=currency,
+                                market=market,
                             )
                         else:
                             results = await provider.search_round_trip(
@@ -194,6 +211,7 @@ class PriceCollector:
                                 return_date=return_date,
                                 currency=currency,
                                 max_stops=max_stops,
+                                **self._provider_search_kwargs(provider, market=market),
                             )
                             stop_label = None
 
@@ -206,6 +224,7 @@ class PriceCollector:
                                 destination=destination,
                                 depart_date=depart_date,
                                 currency=currency,
+                                market=market,
                             )
                         else:
                             results = await provider.search_one_way(
@@ -214,6 +233,7 @@ class PriceCollector:
                                 depart_date=depart_date,
                                 currency=currency,
                                 max_stops=max_stops,
+                                **self._provider_search_kwargs(provider, market=market),
                             )
                             stop_label = None
 
@@ -315,6 +335,7 @@ class PriceCollector:
         batch_size: int = 4,
         delay_seconds: float = 1.2,
         stop_check: Callable[[], bool] | None = None,
+        market: str | None = None,
         currency: str = "USD",
         max_stops: int | None = None,
         trip_type: str = "one_way",
@@ -330,6 +351,23 @@ class PriceCollector:
 
         prioritized_dates = self._prioritize_dates(dates)
         semaphore = asyncio.Semaphore(batch_size)
+
+        async def await_with_stop(coro):
+            task = asyncio.create_task(coro)
+            try:
+                while not task.done():
+                    if stop_check and stop_check():
+                        task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+                        return None, True
+                    await asyncio.sleep(0.25)
+                return await task, False
+            finally:
+                if not task.done():
+                    task.cancel()
 
         async def run_one(dest: str, depart_date: date):
             route_key = self._route_key(origin, dest)
@@ -350,17 +388,22 @@ class PriceCollector:
                     return "stopped"
 
                 try:
-                    result = await self.collect_single_date(
-                        origin=origin,
-                        destination=dest,
-                        depart_date=depart_date,
-                        route_group_id=route_group_id,
-                        currency=currency,
-                        max_stops=max_stops,
-                        trip_type=trip_type,
-                        nights=nights,
-                        return_origin=return_origin,
+                    result, was_stopped = await await_with_stop(
+                        self.collect_single_date(
+                            origin=origin,
+                            destination=dest,
+                            depart_date=depart_date,
+                            route_group_id=route_group_id,
+                            market=market,
+                            currency=currency,
+                            max_stops=max_stops,
+                            trip_type=trip_type,
+                            nights=nights,
+                            return_origin=return_origin,
+                        )
                     )
+                    if was_stopped or result is None:
+                        return "stopped"
 
                     if result.cheapest:
                         self._mark_route_success(route_key)
@@ -414,7 +457,13 @@ class PriceCollector:
                     stats["errors"] += 1
 
             if i + batch_size < len(tasks):
-                await asyncio.sleep(delay_seconds)
+                slept = 0.0
+                while slept < delay_seconds:
+                    if stop_check and stop_check():
+                        break
+                    interval = min(0.25, delay_seconds - slept)
+                    await asyncio.sleep(interval)
+                    slept += interval
 
         return stats
 
@@ -427,6 +476,7 @@ class PriceCollector:
         return_origin: str,
         return_date: date,
         currency: str,
+        market: str | None = None,
     ) -> tuple[list[ProviderResult], str | None]:
         fallback_order = (
             (1, "1 stop"),
@@ -450,6 +500,7 @@ class PriceCollector:
                 ],
                 currency=currency,
                 max_stops=max_stops,
+                **self._provider_search_kwargs(provider, market=market),
             )
 
             if results:
@@ -472,6 +523,7 @@ class PriceCollector:
         destination: str,
         depart_date: date,
         currency: str,
+        market: str | None = None,
     ) -> tuple[list[ProviderResult], str | None]:
         fallback_order = (
             (1, "1 stop"),
@@ -485,6 +537,7 @@ class PriceCollector:
                 depart_date=depart_date,
                 currency=currency,
                 max_stops=max_stops,
+                **self._provider_search_kwargs(provider, market=market),
             )
             if results:
                 for result in results:
@@ -502,6 +555,7 @@ class PriceCollector:
         depart_date: date,
         return_date: date,
         currency: str,
+        market: str | None = None,
     ) -> tuple[list[ProviderResult], str | None]:
         fallback_order = (
             (1, "1 stop"),
@@ -516,6 +570,7 @@ class PriceCollector:
                 return_date=return_date,
                 currency=currency,
                 max_stops=max_stops,
+                **self._provider_search_kwargs(provider, market=market),
             )
             if results:
                 for result in results:

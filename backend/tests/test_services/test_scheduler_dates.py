@@ -85,3 +85,23 @@ def test_group_dates_one_day() -> None:
     group = make_group(days_ahead=1)
     dates = scheduler._group_dates(group)
     assert len(dates) == 2
+
+
+def test_group_dates_clamps_past_start_to_today() -> None:
+    scheduler = make_scheduler()
+    group = make_group(
+        start_date=date.today() - timedelta(days=10),
+        end_date=date.today() + timedelta(days=2),
+    )
+    dates = scheduler._group_dates(group)
+    assert dates[0] == date.today()
+    assert dates[-1] == date.today() + timedelta(days=2)
+
+
+def test_group_dates_returns_empty_when_explicit_end_is_in_past() -> None:
+    scheduler = make_scheduler()
+    group = make_group(
+        start_date=date.today() - timedelta(days=10),
+        end_date=date.today() - timedelta(days=1),
+    )
+    assert scheduler._group_dates(group) == []

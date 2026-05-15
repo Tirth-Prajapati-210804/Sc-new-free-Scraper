@@ -174,27 +174,23 @@ def test_multi_city_export_uses_itinerary_sheet_shape() -> None:
     workbook = load_workbook(BytesIO(workbook_bytes))
 
     assert "Toronto Open Jaw" in workbook.sheetnames
-    assert "Best Deals" in workbook.sheetnames
-    assert "Weekend Deals" in workbook.sheetnames
-    assert "Summary" in workbook.sheetnames
+    assert workbook.sheetnames == ["Toronto Open Jaw"]
     assert "Return Leg" not in workbook.sheetnames
 
     sheet = workbook["Toronto Open Jaw"]
-    headers = [sheet.cell(row=1, column=index).value for index in range(1, 11)]
+    headers = [sheet.cell(row=1, column=index).value for index in range(1, 8)]
     assert headers == [
-        "Depart Date",
-        "Return Date",
-        "Origin",
-        "Outbound To",
-        "Return From",
-        "Nights",
-        "Stop Result",
-        "Outbound Airline",
-        "Return Airline",
-        "Total Trip Price",
+        "Date",
+        "Ending Date",
+        "Dep Airport",
+        "Arrivel Airport",
+        "Night ",
+        "Airline",
+        "Flight Price",
     ]
     assert sheet["A2"].value == datetime(2026, 5, 20)
     assert sheet["B2"].value == "2026-05-31"
-    assert sheet["E2"].value == "BUD"
-    assert sheet["G2"].value == "1 stop"
-    assert sheet["J2"].value == 829
+    assert sheet["D2"].value == "Berlin/BUD"
+    assert sheet["E2"].value == 11
+    assert sheet["F2"].value == "Icelandair / Lufthansa"
+    assert sheet["G2"].value == 829

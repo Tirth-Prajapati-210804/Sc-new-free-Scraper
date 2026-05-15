@@ -4,7 +4,7 @@ import uuid
 from datetime import date as date_type
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,18 +44,25 @@ def _enforce_scrape_rate_limit(request: Request, user: User, scope: str) -> None
 
 def _provider_unavailable_detail(registry) -> str:
     provider_status = registry.status()
-    kayak_status = provider_status.get("kayak")
+    status_messages = {
+        "quota_exhausted": "quota is exhausted. Add more credits or quota before triggering collection again.",
+        "auth_error": "authentication failed. Check the configured credentials before triggering collection again.",
+        "rate_limited": "is temporarily rate limited. Wait for the cooldown and try again.",
+        "cooldown": "is temporarily unavailable after recent provider failures. Check provider status and collection logs.",
+        "error": "is temporarily unavailable after recent provider failures. Check provider status and collection logs.",
+        "provider_error": "is temporarily unavailable after recent provider failures. Check provider status and collection logs.",
+    }
 
-    if kayak_status == "quota_exhausted":
-        return "KAYAK API quota is exhausted. Add more quota before triggering collection again."
-    if kayak_status == "auth_error":
-        return "KAYAK API authentication failed. Check your KAYAK_API_KEY before triggering collection again."
-    if kayak_status == "rate_limited":
-        return "KAYAK API is temporarily rate limited. Wait for the cooldown and try again."
-    if kayak_status in {"cooldown", "error", "provider_error"}:
-        return "KAYAK API is temporarily unavailable after recent provider failures. Check provider status and collection logs."
+    for provider_name, provider_state in provider_status.items():
+        if provider_state in status_messages:
+            label = provider_name.replace("_", " ").title()
+            return f"{label} {status_messages[provider_state]}"
 
-    return "No flight data provider is configured. Add KAYAK_API_KEY to your .env file, or enable DEMO_MODE=true to use demo data."
+    return (
+        "No flight data provider is configured. Add SCRAPINGBEE_API_KEY or "
+        "SCRAPINGBEE_API_KEYS to your .env file, or enable DEMO_MODE=true to "
+        "use demo data."
+    )
 
 
 async def _get_accessible_group(
@@ -86,7 +93,6 @@ async def collection_status(
 @router.post("/trigger")
 async def trigger_collection(
     request: Request,
-    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
     _enforce_scrape_rate_limit(request, current_user, "all")
@@ -99,7 +105,7 @@ async def trigger_collection(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_provider_unavailable_detail(registry),
         )
-    background_tasks.add_task(scheduler.run_collection_cycle)
+    scheduler.start_collection_task()
     return {"status": "triggered"}
 
 
@@ -120,7 +126,6 @@ async def stop_collection(
 async def trigger_group(
     group_id: uuid.UUID,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
@@ -133,7 +138,7 @@ async def trigger_group(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_provider_unavailable_detail(registry),
         )
-    background_tasks.add_task(scheduler.trigger_single_group, group_id)
+    scheduler.start_single_group_task(group_id)
     return {"status": "triggered", "group_id": str(group_id)}
 
 
@@ -142,7 +147,6 @@ async def trigger_group_date(
     group_id: uuid.UUID,
     target_date: date_type,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
@@ -155,7 +159,7 @@ async def trigger_group_date(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_provider_unavailable_detail(registry),
         )
-    background_tasks.add_task(scheduler.trigger_single_group, group_id, [target_date])
+    scheduler.start_single_group_task(group_id, [target_date])
     return {"status": "triggered", "group_id": str(group_id), "date": str(target_date)}
 
 

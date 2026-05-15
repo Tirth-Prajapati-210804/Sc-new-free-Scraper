@@ -201,8 +201,8 @@ async def test_update_route_group_clears_stale_collection_data(auth_client, db_s
                 depart_date=date(2026, 5, 1),
                 provider="searchapi",
                 status="success",
-                price=799.0,
-                currency="USD",
+                offers_found=1,
+                cheapest_price=799.0,
             )
         )
         await session.commit()

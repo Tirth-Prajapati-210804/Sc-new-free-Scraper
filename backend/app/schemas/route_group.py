@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 _IATA_PATTERN = r"^[A-Z0-9]{2,4}$"
 _CURRENCY_PATTERN = r"^[A-Z]{3}$"
 _ALLOWED_TRIP_TYPES = {"one_way", "round_trip", "multi_city"}
+_ALLOWED_MARKETS = {"us", "ca"}
 
 
 def _normalize_iata_codes(v: object) -> list[str] | object:
@@ -41,6 +42,15 @@ def _normalize_trip_type(value: object) -> str:
         )
 
     return trip
+
+
+def _normalize_market(value: object) -> str:
+    market = str(value).strip().lower()
+
+    if market not in _ALLOWED_MARKETS:
+        raise ValueError("market must be one of: us, ca")
+
+    return market
 
 
 class SpecialSheetConfig(BaseModel):
@@ -77,6 +87,7 @@ class RouteGroupCreate(BaseModel):
     days_ahead: int = Field(ge=1, le=730, default=365)
     sheet_name_map: dict[str, str] = Field(default_factory=dict)
     special_sheets: list[SpecialSheetConfig] = Field(default_factory=list)
+    market: str = Field(default="us")
     currency: str = Field(default="USD", pattern=_CURRENCY_PATTERN)
     max_stops: int | None = Field(default=None, ge=0, le=3)
     start_date: date | None = None
@@ -98,6 +109,11 @@ class RouteGroupCreate(BaseModel):
     @classmethod
     def uppercase_currency(cls, value: object) -> str:
         return str(value).strip().upper()
+
+    @field_validator("market", mode="before")
+    @classmethod
+    def validate_market(cls, value: object) -> str:
+        return _normalize_market(value)
 
     @field_validator("sheet_name_map")
     @classmethod
@@ -133,6 +149,7 @@ class RouteGroupUpdate(BaseModel):
     sheet_name_map: dict[str, str] | None = None
     special_sheets: list[SpecialSheetConfig] | None = None
     is_active: bool | None = None
+    market: str | None = None
     currency: str | None = Field(default=None, pattern=_CURRENCY_PATTERN)
     max_stops: int | None = Field(default=None, ge=0, le=3)
     start_date: date | None = None
@@ -166,6 +183,13 @@ class RouteGroupUpdate(BaseModel):
             return None
         return str(value).strip().upper()
 
+    @field_validator("market", mode="before")
+    @classmethod
+    def validate_market_optional(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        return _normalize_market(value)
+
     @field_validator("sheet_name_map")
     @classmethod
     def validate_optional_sheet_name_map(cls, value: dict[str, str] | None) -> dict[str, str] | None:
@@ -196,6 +220,7 @@ class RouteGroupResponse(BaseModel):
     sheet_name_map: dict[str, str]
     special_sheets: list[SpecialSheetConfig]
     is_active: bool
+    market: str
     currency: str
     max_stops: int | None
     start_date: date | None

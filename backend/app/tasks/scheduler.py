@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from datetime import date, timedelta
 from uuid import UUID
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
@@ -48,6 +50,8 @@ class FlightScheduler:
         self._is_running = False
         self._is_collecting = False
         self._stop_requested = False
+        self._lock_connection: AsyncConnection | None = None
+        self._active_task: asyncio.Task | None = None
 
         self._progress: dict = {
             "routes_total": 0,
@@ -166,10 +170,63 @@ class FlightScheduler:
         )
 
     async def stop(self) -> None:
+        self.request_stop()
+        if self._active_task is not None and not self._active_task.done():
+            try:
+                await asyncio.wait_for(self._active_task, timeout=5)
+            except TimeoutError:
+                self._active_task.cancel()
+            except Exception:
+                pass
+
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
 
+        if self._lock_connection is not None:
+            try:
+                await self._lock_connection.close()
+            finally:
+                self._lock_connection = None
+
         self._is_running = False
+
+    def _track_task(self, task: asyncio.Task) -> None:
+        self._active_task = task
+
+        def _cleanup(done_task: asyncio.Task) -> None:
+            if self._active_task is done_task:
+                self._active_task = None
+            try:
+                done_task.result()
+            except asyncio.CancelledError:
+                log.info("collection_task_cancelled")
+            except Exception as exc:
+                log.exception(
+                    "collection_task_failed",
+                    error=redact_text(str(exc)),
+                )
+
+        task.add_done_callback(_cleanup)
+
+    def start_collection_task(self) -> bool:
+        if self._active_task is not None and not self._active_task.done():
+            return False
+
+        task = asyncio.create_task(self.run_collection_cycle())
+        self._track_task(task)
+        return True
+
+    def start_single_group_task(
+        self,
+        group_id: UUID,
+        target_dates: list[date] | None = None,
+    ) -> bool:
+        if self._active_task is not None and not self._active_task.done():
+            return False
+
+        task = asyncio.create_task(self.trigger_single_group(group_id, target_dates))
+        self._track_task(task)
+        return True
 
     # --------------------------------------------------
     # MAIN LOOP
@@ -188,6 +245,7 @@ class FlightScheduler:
             async with self.session_factory() as session:
                 lock_acquired = await self._acquire_global_lock(session)
                 if not lock_acquired:
+                    log.warning("collection_lock_unavailable", mode="all")
                     return
 
                 try:
@@ -305,6 +363,7 @@ class FlightScheduler:
                                 batch_size=batch_size,
                                 delay_seconds=self.settings.scrape_delay_seconds,
                                 stop_check=lambda: self._stop_requested,
+                                market=getattr(group, "market", None),
                                 currency=group.currency,
                                 max_stops=group.max_stops,
                                 trip_type=segment.trip_type,
@@ -329,10 +388,12 @@ class FlightScheduler:
 
                     if self._stop_requested:
                         run.status = "stopped"
+                        run.errors = []
                     elif total_success == 0 and total_errors > 0:
                         run.status = "failed"
                     else:
                         run.status = "completed"
+                        run.errors = []
                     run.routes_total = len(planned_routes)
                     run.routes_success = total_success
                     run.routes_failed = total_errors
@@ -397,12 +458,15 @@ class FlightScheduler:
     def _group_dates(self, group: RouteGroup) -> list[date]:
         today = date.today()
 
-        start = group.start_date or today
+        configured_start = group.start_date or today
+        start = max(configured_start, today)
         end = group.end_date or (
             start + timedelta(
                 days=min(group.days_ahead, self._MAX_DATES)
             )
         )
+        if end < start:
+            return []
 
         total_days = min(
             (end - start).days + 1,
@@ -467,12 +531,40 @@ class FlightScheduler:
     # --------------------------------------------------
 
     async def _acquire_global_lock(self, session) -> bool:
+        bind = getattr(self.session_factory, "kw", {}).get("bind")
+        if isinstance(bind, AsyncEngine):
+            connection = await bind.connect()
+            try:
+                result = await connection.execute(
+                    text("SELECT pg_try_advisory_lock(987654321)")
+                )
+                locked = bool(result.scalar())
+                if locked:
+                    self._lock_connection = connection
+                    return True
+            except Exception:
+                await connection.close()
+                raise
+
+            await connection.close()
+            return False
+
         result = await session.execute(
             text("SELECT pg_try_advisory_lock(987654321)")
         )
         return bool(result.scalar())
 
     async def _release_global_lock(self, session):
+        if self._lock_connection is not None:
+            try:
+                await self._lock_connection.execute(
+                    text("SELECT pg_advisory_unlock(987654321)")
+                )
+            finally:
+                await self._lock_connection.close()
+                self._lock_connection = None
+            return
+
         await session.execute(
             text("SELECT pg_advisory_unlock(987654321)")
         )
@@ -504,6 +596,7 @@ class FlightScheduler:
             async with self.session_factory() as session:
                 lock_acquired = await self._acquire_global_lock(session)
                 if not lock_acquired:
+                    log.warning("collection_lock_unavailable", mode="single_group", group_id=str(group_id))
                     return stats
 
                 try:
@@ -598,6 +691,7 @@ class FlightScheduler:
                             batch_size=batch_size,
                             delay_seconds=self.settings.scrape_delay_seconds,
                             stop_check=lambda: self._stop_requested,
+                            market=getattr(group, "market", None),
                             currency=group.currency,
                             max_stops=group.max_stops,
                             trip_type=segment.trip_type,
@@ -612,10 +706,12 @@ class FlightScheduler:
 
                     if self._stop_requested:
                         run.status = "stopped"
+                        run.errors = []
                     elif stats["success"] == 0 and stats["errors"] > 0:
                         run.status = "failed"
                     else:
                         run.status = "completed"
+                        run.errors = []
                     run.routes_success = stats["success"]
                     run.routes_failed = stats["errors"]
                     run.dates_scraped = stats["success"]

@@ -171,10 +171,10 @@ export function DashboardPage() {
     statusQuery.data?.progress?.current_origin,
   ]);
 
-  const kayakStatus = health?.provider_status?.kayak;
+  const providerStatuses = Object.values(health?.provider_status ?? {});
   const noProvider =
     !healthQuery.isLoading &&
-    kayakStatus === "disabled" &&
+    !providerStatuses.some((status) => status === "configured" || status === "active") &&
     !health?.demo_mode;
 
   const filteredGroups = useMemo(() => {
@@ -278,7 +278,7 @@ export function DashboardPage() {
             tone="amber"
             icon={<AlertTriangle className="h-4 w-4" />}
             title="No API key configured"
-            text="Add KAYAK_API_KEY, or enable DEMO_MODE=true."
+            text="Add SCRAPINGBEE_API_KEY or SCRAPINGBEE_API_KEYS, or enable DEMO_MODE=true."
           />
         ) : null}
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import multiprocessing
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -14,6 +16,21 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.redaction import redact_text
 from app.schemas.health import HealthResponse
+
+
+def _should_start_scheduler_for_process(
+    argv: list[str] | tuple[str, ...] | None = None,
+    process_name: str | None = None,
+) -> bool:
+    effective_argv = list(argv if argv is not None else sys.argv)
+    effective_process_name = process_name or multiprocessing.current_process().name
+    reload_enabled = "--reload" in effective_argv
+
+    # Under uvicorn --reload on Windows, the MainProcess is the file watcher /
+    # reloader supervisor and the spawned child process serves traffic.
+    if reload_enabled and effective_process_name == "MainProcess":
+        return False
+    return True
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -57,7 +74,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             provider_registry=registry,
         )
         app.state.scheduler = scheduler
-        scheduler.start()
+        if _should_start_scheduler_for_process():
+            scheduler.start()
+        else:
+            log.info("scheduler_start_skipped_in_reloader_parent")
 
         log.info("startup complete", environment=settings.environment)
         yield
@@ -82,7 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.get_cors_origins(),
-        allow_origin_regex=settings.cors_origin_regex or None,
+        allow_origin_regex=settings.get_cors_origin_regex(),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization"],

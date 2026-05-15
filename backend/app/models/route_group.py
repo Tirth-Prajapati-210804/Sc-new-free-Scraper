@@ -29,6 +29,7 @@ class RouteGroup(Base):
     sheet_name_map: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     special_sheets: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    market: Mapped[str] = mapped_column(String(8), nullable=False, default="us")
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="USD")
     max_stops: Mapped[int | None] = mapped_column(Integer, nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)

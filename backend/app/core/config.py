@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "db", "postgres"}
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 # Hosts that production deploys *must* trust. We always merge these into the
 # user's ALLOWED_HOSTS so that a stale env var (e.g. one set on Render before
 # we knew the public hostname) cannot lock the API out.
-_ALWAYS_ALLOWED_HOSTS = (
+_NON_PRODUCTION_ALLOWED_HOSTS = (
     "localhost",
     "127.0.0.1",
     "*.onrender.com",
@@ -21,7 +23,9 @@ _ALWAYS_ALLOWED_HOSTS = (
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=str(_BACKEND_ROOT / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # App
@@ -48,6 +52,17 @@ class Settings(BaseSettings):
     admin_full_name: str = "System Admin"
 
     # Provider API keys (empty = disabled)
+    scrapingbee_api_key: str = ""
+    scrapingbee_api_keys: str = ""
+    scrapingbee_base_url: str = "https://app.scrapingbee.com/api/v1"
+    scrapingbee_country_code: str = "us"
+    scrapingbee_user_agent: str = "flight-harvester/1.0"
+    scrapingbee_premium_proxy: bool = False
+    scrapingbee_stealth_proxy: bool = False
+    travelpayouts_token: str = ""
+    travelpayouts_marker: str = ""
+    travelpayouts_base_url: str = "https://api.travelpayouts.com"
+    travelpayouts_user_agent: str = "flight-harvester/1.0"
     kayak_api_key: str = ""
     kayak_base_url: str = "https://sandbox-en-us.kayakaffiliates.com"
     kayak_poll_timeout_seconds: int = 90
@@ -83,7 +98,13 @@ class Settings(BaseSettings):
     def normalize_environment(cls, v: object) -> str:
         return str(v).strip().lower()
 
-    @field_validator("cors_origins", "allowed_hosts", "searchapi_keys", mode="before")
+    @field_validator(
+        "cors_origins",
+        "allowed_hosts",
+        "searchapi_keys",
+        "scrapingbee_api_keys",
+        mode="before",
+    )
     @classmethod
     def parse_list_to_string(cls, v: object) -> str:
         if isinstance(v, list):
@@ -92,7 +113,22 @@ class Settings(BaseSettings):
             return json.dumps(v)
         return str(v)
 
-    @field_validator("searchapi_key", "kayak_api_key", "kayak_base_url", "kayak_user_agent", "kayak_original_client_ip", mode="before")
+    @field_validator(
+        "searchapi_key",
+        "scrapingbee_api_key",
+        "scrapingbee_base_url",
+        "scrapingbee_country_code",
+        "scrapingbee_user_agent",
+        "kayak_api_key",
+        "kayak_base_url",
+        "kayak_user_agent",
+        "kayak_original_client_ip",
+        "travelpayouts_token",
+        "travelpayouts_marker",
+        "travelpayouts_base_url",
+        "travelpayouts_user_agent",
+        mode="before",
+    )
     @classmethod
     def normalize_provider_string(cls, v: object) -> str:
         return str(v).strip()
@@ -126,15 +162,21 @@ class Settings(BaseSettings):
 
     def get_allowed_hosts(self) -> list[str]:
         configured = self._parse_csv_or_json(self.allowed_hosts)
-        # Merge with platform fallbacks so a misconfigured env cannot block
-        # standard localhost / Vercel / Render deployments.
+        if self.environment in {"production", "prod"}:
+            return configured
+
+        # Keep preview and localhost fallbacks in non-production so local and
+        # ephemeral deployments still work without extra configuration.
         seen: set[str] = set()
         merged: list[str] = []
-        for host in (*configured, *_ALWAYS_ALLOWED_HOSTS):
+        for host in (*configured, *_NON_PRODUCTION_ALLOWED_HOSTS):
             if host and host not in seen:
                 seen.add(host)
                 merged.append(host)
         return merged
+
+    def get_cors_origin_regex(self) -> str | None:
+        return self.cors_origin_regex or None
 
     def get_searchapi_keys(self) -> list[str]:
         explicit_pool = self._parse_csv_or_json(self.searchapi_keys)
@@ -149,7 +191,27 @@ class Settings(BaseSettings):
                 keys.append(key)
         return keys
 
-    @field_validator("debug", "scheduler_enabled", "expose_api_docs", mode="before")
+    def get_scrapingbee_keys(self) -> list[str]:
+        explicit_pool = self._parse_csv_or_json(self.scrapingbee_api_keys)
+        legacy_field = self._parse_csv_or_json(self.scrapingbee_api_key)
+        configured = explicit_pool if explicit_pool else legacy_field
+
+        seen: set[str] = set()
+        keys: list[str] = []
+        for key in configured:
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        return keys
+
+    @field_validator(
+        "debug",
+        "scheduler_enabled",
+        "expose_api_docs",
+        "scrapingbee_premium_proxy",
+        "scrapingbee_stealth_proxy",
+        mode="before",
+    )
     @classmethod
     def parse_bool(cls, v: object) -> bool:
         if isinstance(v, str):

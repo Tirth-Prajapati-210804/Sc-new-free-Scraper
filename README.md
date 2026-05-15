@@ -2,6 +2,8 @@
 
 Flight Harvester is a full-stack flight-price collection system with a FastAPI backend, a React + Vite frontend, and PostgreSQL persistence. It supports JWT authentication, scheduled collection, manual collection triggers, historical price views, logs, Excel export, round-trip groups, and multi-city groups.
 
+The primary production provider is ScrapingBee against Google Flights, with Travelpayouts and KAYAK remaining optional secondary providers when their credentials are configured.
+
 ## Stack
 
 Backend: FastAPI, SQLAlchemy 2.x async, Alembic, APScheduler.
@@ -71,7 +73,11 @@ The frontend expects `VITE_API_BASE_URL` to point at the backend in local develo
 
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` - bootstrap admin account.
 
-`SEARCHAPI_KEY` / `SEARCHAPI_KEYS` - enables the real provider. Use one key in `SEARCHAPI_KEY` or a comma-separated / JSON array pool in `SEARCHAPI_KEYS`.
+`SCRAPINGBEE_API_KEY` / `SCRAPINGBEE_API_KEYS` - enables the primary real provider. Use one key in `SCRAPINGBEE_API_KEY` or a comma-separated / JSON array pool in `SCRAPINGBEE_API_KEYS`.
+
+`SCRAPINGBEE_COUNTRY_CODE` - default country or market passed to ScrapingBee for KAYAK rendering. Default `us`.
+
+`SCRAPINGBEE_PREMIUM_PROXY`, `SCRAPINGBEE_STEALTH_PROXY` - optional higher-cost proxy modes for tougher routes or higher anti-bot pressure.
 
 `DEMO_MODE` - set `true` for fake/demo data.
 
@@ -103,7 +109,7 @@ Set these required Render environment variables:
 - `JWT_SECRET_KEY`
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
-- `SEARCHAPI_KEY` or `SEARCHAPI_KEYS`
+- `SCRAPINGBEE_API_KEY` or `SCRAPINGBEE_API_KEYS`
 - `CORS_ORIGINS` = your Vercel production URL plus any preview URLs you want to allow
 
 Recommended backend values:
@@ -111,6 +117,13 @@ Recommended backend values:
 - `DEMO_MODE=false`
 - `SCHEDULER_ENABLED=true`
 - `ALLOWED_HOSTS=*.onrender.com,*.vercel.app`
+- `SCRAPINGBEE_COUNTRY_CODE=us`
+
+Provider notes:
+
+- ScrapingBee's official docs require JSON-stringified `extract_rules` for GET requests, and the Google Flights example uses `custom_google`, JavaScript rendering, and a `js_scenario` to load cards before extraction.
+- ScrapingBee documents `401` as "No more credit available" and `429` as "Too many concurrent requests", so keep `PROVIDER_CONCURRENCY_LIMIT` conservative and monitor remaining credits.
+- ScrapingBee's official Google Flights guide extracts individual cards with the `li.pIav2d` selector. Validate the live scraper after Google Flights UI changes.
 
 ### Vercel frontend
 
@@ -167,6 +180,13 @@ cd frontend
 npm run build
 ```
 
+Live provider smoke test:
+
+```bash
+cd backend
+python -m scripts.verify_scrapingbee
+```
+
 Full verification used for client handoff:
 
 ```bash
@@ -185,7 +205,7 @@ If login fails, verify `JWT_SECRET_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
 
 If the backend fails on startup with a PostgreSQL connection error, confirm a database is running on `localhost:5432` for host-based development, or start Docker Desktop and run `docker compose up -d db`.
 
-If collection is disabled or provider status looks degraded, confirm `SEARCHAPI_KEY` or `SEARCHAPI_KEYS` is set and that your SearchApi.io quota is not exhausted, or use `DEMO_MODE=true`.
+If collection is disabled or provider status looks degraded, confirm `SCRAPINGBEE_API_KEY` or `SCRAPINGBEE_API_KEYS` is set, make sure the ScrapingBee account still has credits available, and keep provider concurrency low enough to avoid `429` concurrent-request errors. You can still use `DEMO_MODE=true` for UI-only demos.
 
 If the frontend cannot reach the API, verify `VITE_API_BASE_URL`, `CORS_ORIGINS`, and the deployed Render backend URL.
 

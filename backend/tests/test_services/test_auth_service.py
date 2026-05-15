@@ -2,19 +2,18 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
 
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.schemas.auth import UserCreate, UserUpdate
 from app.services.auth_service import (
     authenticate,
     create_user,
     delete_user,
-    get_user_by_email,
-    get_user_by_id,
+    ensure_default_admin,
     issue_login_response,
     update_user,
 )
@@ -41,6 +40,9 @@ def make_settings() -> MagicMock:
     settings.jwt_secret_key = "test-secret-key-that-is-32-characters!"
     settings.jwt_algorithm = "HS256"
     settings.jwt_access_token_expire_minutes = 60
+    settings.admin_email = "admin@example.com"
+    settings.admin_password = "AdminPassword123!"
+    settings.admin_full_name = "System Admin"
     return settings
 
 
@@ -94,6 +96,53 @@ async def test_authenticate_inactive_user_rejected() -> None:
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_ensure_default_admin_creates_missing_admin() -> None:
+    session = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = None
+    session.execute = AsyncMock(return_value=result_mock)
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    settings = make_settings()
+    await ensure_default_admin(session, settings)
+
+    session.add.assert_called_once()
+    session.commit.assert_awaited_once()
+    created = session.add.call_args.args[0]
+    assert created.email == settings.admin_email
+    assert created.full_name == settings.admin_full_name
+    assert created.role == "admin"
+    assert created.is_active is True
+    assert verify_password(settings.admin_password, created.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_ensure_default_admin_does_not_overwrite_existing_admin() -> None:
+    existing = make_user(
+        email="admin@example.com",
+        password="OldPassword123!",
+        role="user",
+        is_active=False,
+    )
+    existing.full_name = "Old Name"
+    session = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = existing
+    session.execute = AsyncMock(return_value=result_mock)
+    session.commit = AsyncMock()
+
+    settings = make_settings()
+    await ensure_default_admin(session, settings)
+
+    assert existing.full_name == "Old Name"
+    assert existing.role == "user"
+    assert existing.is_active is False
+    assert verify_password("OldPassword123!", existing.hashed_password)
+    session.commit.assert_not_awaited()
+
+
 # ── issue_login_response ─────────────────────────────────────────────────────
 
 def test_issue_login_response_returns_token() -> None:
@@ -124,7 +173,7 @@ async def test_create_user_success() -> None:
         password="StrongPassword12!",
         role="user",
     )
-    user = await create_user(session, data)
+    await create_user(session, data)
     session.add.assert_called_once()
     session.commit.assert_awaited_once()
 

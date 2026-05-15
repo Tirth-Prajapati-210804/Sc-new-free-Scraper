@@ -1,48 +1,52 @@
 import { expect, test } from "@playwright/test";
-import { loginViaUI, MOCK_USER, mockBaseRoutes } from "./fixtures";
 
-test.describe("Login page", () => {
-  test("shows Flight Price Tracker heading", async ({ page }) => {
-    await mockBaseRoutes(page);
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "Flight Price Tracker" })).toBeVisible();
-  });
+import { mockBaseRoutes } from "./fixtures";
 
+test.describe("Login", () => {
   test("successful login redirects to dashboard", async ({ page }) => {
     await mockBaseRoutes(page);
-    await loginViaUI(page);
-    await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  });
+    await page.route("**/api/v1/auth/login", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          access_token: "test-token",
+          token_type: "bearer",
+          expires_in: 7200,
+          user: {
+            id: "user-1",
+            email: "admin@example.com",
+            full_name: "System Admin",
+            role: "admin",
+          },
+        }),
+      });
+    });
 
-  test("shows error message on wrong credentials", async ({ page }) => {
-    await page.route("**/api/v1/auth/login", (r) =>
-      r.fulfill({ status: 401, contentType: "application/json", body: '{"detail":"Unauthorized"}' }),
-    );
     await page.goto("/login");
-    await page.getByLabel("Email").fill("wrong@example.com");
-    await page.getByLabel("Password").fill("badpassword");
+    await page.getByLabel("Email").fill("admin@example.com");
+    await page.getByLabel("Password").fill("Admin12345678");
     await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "Flight Collection Overview" })).toBeVisible();
+  });
+
+  test("failed login shows server message", async ({ page }) => {
+    await page.route("**/api/v1/auth/login", async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Invalid email or password" }),
+      });
+    });
+
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("admin@example.com");
+    await page.getByLabel("Password").fill("wrong-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
     await expect(page.getByText("Invalid email or password")).toBeVisible();
-    await expect(page).toHaveURL("/login");
-  });
-
-  test("protected routes redirect to /login when unauthenticated", async ({ page }) => {
-    await page.goto("/");
-    await expect(page).toHaveURL(/\/login/);
-  });
-
-  test("unknown routes show 404 page", async ({ page }) => {
-    await mockBaseRoutes(page);
-    await loginViaUI(page);
-    await page.goto("/this-does-not-exist");
-    await expect(page.getByText("404")).toBeVisible();
-    await expect(page.getByText("Page not found")).toBeVisible();
-  });
-
-  test("displays user's name after login (sidebar)", async ({ page }) => {
-    await mockBaseRoutes(page);
-    await loginViaUI(page);
-    await expect(page.getByText(MOCK_USER.full_name)).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
   });
 });

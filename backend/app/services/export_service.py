@@ -24,16 +24,13 @@ _MAIN_HEADERS = [
 ]
 
 _MULTI_CITY_HEADERS = [
-    "Depart Date",
-    "Return Date",
-    "Origin",
-    "Outbound To",
-    "Return From",
-    "Nights",
-    "Stop Result",
-    "Outbound Airline",
-    "Return Airline",
-    "Total Trip Price",
+    "Date",
+    "Ending Date",
+    "Dep Airport",
+    "Arrivel Airport",
+    "Night ",
+    "Airline",
+    "Flight Price",
 ]
 
 _DEALS_HEADERS = [
@@ -60,6 +57,10 @@ _WEEKEND_HEADERS = [
     "Airline",
     "Price",
 ]
+
+
+def _safe_stop_label(value: object) -> str:
+    return value if isinstance(value, str) else ""
 
 
 def export_route_group(
@@ -129,7 +130,7 @@ def export_route_group(
                 ws.cell(
                     row=row_idx,
                     column=6,
-                    value=result.stop_label or "",
+                    value=_safe_stop_label(result.stop_label),
                 )
                 ws.cell(
                     row=row_idx,
@@ -182,7 +183,7 @@ def export_route_group(
                 ws.cell(row=row_idx, column=4, value=route_group.nights)
                 if result:
                     ws.cell(row=row_idx, column=5, value=result.airline)
-                    ws.cell(row=row_idx, column=6, value=result.stop_label or "")
+                    ws.cell(row=row_idx, column=6, value=_safe_stop_label(result.stop_label))
                     ws.cell(
                         row=row_idx,
                         column=7,
@@ -343,93 +344,24 @@ def _export_multi_city_route_group(
         for row_idx, result in enumerate(rows, start=2):
             itinerary = result.itinerary_data or {}
             return_date = itinerary.get("return_date")
-            outbound_airline = itinerary.get("outbound_airline") or result.airline
-            return_airline = itinerary.get("return_airline") or ""
             return_origin = itinerary.get("return_origin") or ""
-            stop_label = itinerary.get("stop_result_label") or result.stop_label or ""
+            destination_label = route_group.destination_label
+            arrival_airport = destination_label
+            if return_origin:
+                arrival_airport = f"{destination_label}/{return_origin}"
 
             ws.cell(row=row_idx, column=1, value=result.depart_date).number_format = "YYYY-MM-DD"
             ws.cell(row=row_idx, column=2, value=return_date).number_format = "YYYY-MM-DD"
             ws.cell(row=row_idx, column=3, value=result.origin)
-            ws.cell(row=row_idx, column=4, value=route_group.destination_label)
-            ws.cell(row=row_idx, column=5, value=return_origin)
-            ws.cell(row=row_idx, column=6, value=route_group.nights)
-            ws.cell(row=row_idx, column=7, value=stop_label)
-            ws.cell(row=row_idx, column=8, value=outbound_airline)
-            ws.cell(row=row_idx, column=9, value=return_airline)
-            ws.cell(row=row_idx, column=10, value=int(round(float(result.price))))
+            ws.cell(row=row_idx, column=4, value=arrival_airport)
+            ws.cell(row=row_idx, column=5, value=route_group.nights)
+            ws.cell(row=row_idx, column=6, value=result.airline)
+            ws.cell(row=row_idx, column=7, value=int(round(float(result.price))))
 
             itinerary_prices_by_origin.setdefault(origin, []).append(float(result.price))
             all_itinerary_prices.append(result)
 
         _autosize_columns(ws)
-
-    deals = sorted(all_itinerary_prices, key=lambda item: float(item.price))[:25]
-    ws = wb.create_sheet("Best Deals")
-    _write_header_row(
-        ws,
-        [
-            "Rank",
-            "Origin",
-            "Outbound To",
-            "Return From",
-            "Depart Date",
-            "Return Date",
-            "Stop Result",
-            "Total Price",
-        ],
-    )
-    for i, result in enumerate(deals, start=2):
-        itinerary = result.itinerary_data or {}
-        ws.cell(row=i, column=1, value=i - 1)
-        ws.cell(row=i, column=2, value=result.origin)
-        ws.cell(row=i, column=3, value=route_group.destination_label)
-        ws.cell(row=i, column=4, value=itinerary.get("return_origin") or "")
-        ws.cell(row=i, column=5, value=result.depart_date).number_format = "YYYY-MM-DD"
-        ws.cell(row=i, column=6, value=itinerary.get("return_date")).number_format = "YYYY-MM-DD"
-        ws.cell(row=i, column=7, value=itinerary.get("stop_result_label") or result.stop_label or "")
-        ws.cell(row=i, column=8, value=int(round(float(result.price))))
-    _autosize_columns(ws)
-
-    weekend = sorted(
-        [r for r in all_itinerary_prices if r.depart_date.weekday() in (4, 5, 6)],
-        key=lambda item: float(item.price),
-    )[:25]
-    ws = wb.create_sheet("Weekend Deals")
-    _write_header_row(
-        ws,
-        ["Origin", "Outbound To", "Return From", "Depart Date", "Return Date", "Stop Result", "Total Price"],
-    )
-    for i, result in enumerate(weekend, start=2):
-        itinerary = result.itinerary_data or {}
-        ws.cell(row=i, column=1, value=result.origin)
-        ws.cell(row=i, column=2, value=route_group.destination_label)
-        ws.cell(row=i, column=3, value=itinerary.get("return_origin") or "")
-        ws.cell(row=i, column=4, value=result.depart_date).number_format = "YYYY-MM-DD"
-        ws.cell(row=i, column=5, value=itinerary.get("return_date")).number_format = "YYYY-MM-DD"
-        ws.cell(row=i, column=6, value=itinerary.get("stop_result_label") or result.stop_label or "")
-        ws.cell(row=i, column=7, value=int(round(float(result.price))))
-    _autosize_columns(ws)
-
-    ws = wb.create_sheet("Summary")
-    _write_header_row(
-        ws,
-        ["Origin", "Records", "Lowest Total", "Average Total", "Return From"],
-    )
-    row_idx = 2
-    for origin in route_group.origins:
-        rows = rows_by_origin.get(origin) or []
-        if not rows:
-            continue
-        prices = [float(item.price) for item in rows]
-        itinerary = rows[0].itinerary_data or {}
-        ws.cell(row=row_idx, column=1, value=origin)
-        ws.cell(row=row_idx, column=2, value=len(rows))
-        ws.cell(row=row_idx, column=3, value=int(round(min(prices))))
-        ws.cell(row=row_idx, column=4, value=int(round(mean(prices))))
-        ws.cell(row=row_idx, column=5, value=itinerary.get("return_origin") or "")
-        row_idx += 1
-    _autosize_columns(ws)
 
     output = BytesIO()
     wb.save(output)
