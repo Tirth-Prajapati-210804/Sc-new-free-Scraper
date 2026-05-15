@@ -482,6 +482,8 @@ class ScrapingBeeProvider:
         params = self._base_request_params(target_url, country_code=country_code)
         params["json_response"] = "True"
         params["js_scenario"] = json.dumps(js_scenario, separators=(",", ":"))
+        params["block_resources"] = "True"
+        params["wait"] = 2500
 
         async with self._semaphore:
             await self._wait_for_slot()
@@ -638,27 +640,40 @@ class ScrapingBeeProvider:
             "})()"
         )
         script = (
-            "JSON.stringify({card_count:document.querySelectorAll('div[aria-label^=\"Result item\"]').length,"
-            "captured_count:Array.from(document.querySelectorAll('div[aria-label^=\"Result item\"]')).slice(0,"
-            f"{card_limit}).length,"
-            "cards:Array.from(document.querySelectorAll('div[aria-label^=\"Result item\"]'))"
-            f".slice(0,{card_limit})"
-            ".map(card=>({"
-            "text:(card.innerText||'').trim(),"
-            "price_text:card.querySelector('.nrc6-price-section .e2GB-price-text')?.innerText||'',"
-            "booking_href:card.querySelector('.nrc6-price-section a[href*=\"/book/flight\"]')?.getAttribute('href')||'',"
-            "cabin:card.querySelector('.nrc6-price-section .Hy6H')?.innerText||'',"
-            "airline_text:card.querySelector('.J0g6-operator-text')?.innerText||'',"
+            "(()=>{"
+            f"const cardLimit={card_limit};"
+            "const isCard=node=>!!node&&!!node.querySelector('.nrc6-price-section .e2GB-price-text')"
+            "&&node.querySelectorAll('ol.hJSA-list > li').length>=2;"
+            "const raw=Array.from(document.querySelectorAll("
+            "'div[aria-label^=\"Result item\"],div[data-resultid],div.nrc6,div[class*=\"nrc6\"]'"
+            ")).filter(isCard);"
+            "const roots=raw.filter((card,index)=>!raw.some((other,otherIndex)=>otherIndex!==index&&other.contains(card)));"
+            "const clean=v=>(v||'').toString().trim();"
+            "const tabText=label=>(Array.from(document.querySelectorAll('button,a,[role=\"button\"],div,span'))"
+            ".find(el=>new RegExp('^'+label+'(?:\\\\s|$)').test(clean(el.innerText||el.getAttribute('aria-label')).replace(/\\\\s+/g,' ').toLowerCase()))"
+            "?.innerText||'').trim();"
+            "return JSON.stringify({"
+            "card_count:roots.length,"
+            "captured_count:roots.slice(0,cardLimit).length,"
+            "cards:roots.slice(0,cardLimit).map(card=>({"
+            "text:clean(card.innerText),"
+            "price_text:clean(card.querySelector('.nrc6-price-section .e2GB-price-text')?.innerText),"
+            "booking_href:clean(card.querySelector('.nrc6-price-section a[href*=\"/book/flight\"]')?.getAttribute('href')),"
+            "cabin:clean(card.querySelector('.nrc6-price-section .Hy6H')?.innerText),"
+            "airline_text:clean(card.querySelector('.J0g6-operator-text')?.innerText),"
             "legs:Array.from(card.querySelectorAll('ol.hJSA-list > li')).map(li=>({"
-            "text:(li.innerText||'').trim(),"
-            "airline:li.querySelector('.tdCx-leg-carrier img')?.getAttribute('alt')||'',"
-            "time_text:li.querySelector('.VY2U .vmXl')?.innerText||'',"
-            "route_text:li.querySelector('.VY2U [dir=\"ltr\"]')?.innerText||'',"
-            "stops_text:li.querySelector('.JWEO .vmXl')?.innerText||'',"
-            "layover_text:li.querySelector('.JWEO .c_cgF')?.innerText||'',"
-            "duration_text:li.querySelector('.xdW8 .vmXl')?.innerText||''"
+            "text:clean(li.innerText),"
+            "airline:clean(li.querySelector('.tdCx-leg-carrier img')?.getAttribute('alt')),"
+            "time_text:clean(li.querySelector('.VY2U .vmXl')?.innerText),"
+            "route_text:clean(li.querySelector('.VY2U [dir=\"ltr\"]')?.innerText),"
+            "stops_text:clean(li.querySelector('.JWEO .vmXl')?.innerText),"
+            "layover_text:clean(li.querySelector('.JWEO .c_cgF')?.innerText),"
+            "duration_text:clean(li.querySelector('.xdW8 .vmXl')?.innerText)"
             "})).filter(leg=>leg.text)"
-            "}))})"
+            "})),"
+            "summary:{cheapest:tabText('cheapest'),best:tabText('best')}"
+            "});"
+            "})()"
         )
         if not deep:
             return {
@@ -746,6 +761,24 @@ class ScrapingBeeProvider:
         if max_stops is None:
             return results
         return [result for result in results if result.stops <= max_stops]
+
+    def _rendered_payload_has_summary_prices(self, rendered: dict) -> bool:
+        evaluate_results = rendered.get("evaluate_results")
+        if not isinstance(evaluate_results, list) or not evaluate_results:
+            return False
+        payload_raw = evaluate_results[0]
+        if not isinstance(payload_raw, str):
+            return False
+        try:
+            payload = json.loads(payload_raw)
+        except json.JSONDecodeError:
+            return False
+        if not isinstance(payload, dict):
+            return False
+        summary = payload.get("summary")
+        if not isinstance(summary, dict):
+            return False
+        return any(_clean_text(summary.get(key)) for key in ("cheapest", "best"))
 
     def _annotate_multi_city_results(
         self,
@@ -1139,6 +1172,8 @@ class ScrapingBeeProvider:
                 deep_link=target_url,
                 market_country_code=market_country_code,
             )
+        if not results and card_count == 0 and not self._rendered_payload_has_summary_prices(rendered):
+            raise ValueError("KAYAK rendered page did not expose extractable result cards.")
         results = self._annotate_multi_city_results(
             results,
             outbound_origin=outbound_origin,

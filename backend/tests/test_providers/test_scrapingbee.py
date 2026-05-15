@@ -288,7 +288,7 @@ async def test_multi_city_uses_native_kayak_search(provider: ScrapingBeeProvider
     assert "nrc6-price-section" in params["js_scenario"]
     assert "cheapest" in params["js_scenario"].lower()
     assert "scrollBy" in params["js_scenario"]
-    assert "slice(0,90)" in params["js_scenario"]
+    assert "cardLimit=90" in params["js_scenario"]
     assert results[0].price == 829.0
     assert results[0].airline == "Icelandair / Lufthansa"
     assert results[0].duration_minutes == 1439
