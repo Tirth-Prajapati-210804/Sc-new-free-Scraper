@@ -18,6 +18,7 @@ def make_settings(**overrides) -> MagicMock:
     settings.scrapingbee_user_agent = "flight-harvester/1.0"
     settings.scrapingbee_premium_proxy = False
     settings.scrapingbee_stealth_proxy = False
+    settings.scrapingbee_multi_city_debug = False
     settings.provider_timeout_seconds = 30
     settings.provider_max_retries = 3
     settings.provider_concurrency_limit = 2
@@ -49,6 +50,19 @@ def test_scrapingbee_key_creates_scrapingbee_provider() -> None:
     providers = registry.get_enabled()
     assert len(providers) == 1
     assert providers[0].name == "scrapingbee"
+
+
+def test_scrapingbee_debug_flag_is_passed_to_provider() -> None:
+    registry = ProviderRegistry(
+        make_settings(
+            scrapingbee_api_key="bee-key-123",
+            scrapingbee_multi_city_debug=True,
+        )
+    )
+
+    provider = registry.get_enabled()[0]
+
+    assert provider._providers[0]._multi_city_debug is True
 
 
 def test_demo_mode_takes_priority_over_scrapingbee_key() -> None:

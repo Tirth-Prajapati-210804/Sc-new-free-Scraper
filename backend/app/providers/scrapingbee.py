@@ -227,6 +227,7 @@ class ScrapingBeeProvider:
         country_code: str = "us",
         premium_proxy: bool = False,
         stealth_proxy: bool = False,
+        multi_city_debug: bool = False,
         user_agent: str = "flight-harvester/1.0",
     ) -> None:
         self._api_key = api_key.strip()
@@ -236,6 +237,7 @@ class ScrapingBeeProvider:
         self._country_code = country_code.strip().lower()
         self._premium_proxy = premium_proxy
         self._stealth_proxy = stealth_proxy
+        self._multi_city_debug = multi_city_debug
         self._client = httpx.AsyncClient(
             timeout=self._timeout,
             headers={
@@ -778,6 +780,83 @@ class ScrapingBeeProvider:
             return False
         return any(_clean_text(summary.get(key)) for key in ("cheapest", "best"))
 
+    def _multi_city_summary_prices(self, rendered: dict) -> dict[str, str]:
+        payload = self._extract_rendered_cards_payload(rendered)
+        if payload is None:
+            return {}
+        summary = payload.get("summary")
+        if not isinstance(summary, dict):
+            return {}
+        prices: dict[str, str] = {}
+        for key in ("cheapest", "best", "quickest"):
+            value = _clean_text(summary.get(key))
+            if value:
+                prices[key] = value
+        return prices
+
+    def _log_multi_city_debug_snapshot(
+        self,
+        *,
+        outbound_origin: str,
+        outbound_destination: str,
+        outbound_date: date,
+        inbound_origin: str,
+        inbound_destination: str,
+        inbound_date: date,
+        target_url: str,
+        summary_prices: dict[str, str],
+        card_count: int,
+        captured_count: int,
+        raw_results: list[ProviderResult],
+        eligible_results: list[ProviderResult],
+        max_stops: int | None,
+        used_deep_pass: bool,
+    ) -> None:
+        if not self._multi_city_debug:
+            return
+
+        def _preview(items: list[ProviderResult]) -> list[dict[str, object]]:
+            preview: list[dict[str, object]] = []
+            for result in items[:10]:
+                raw_data = result.raw_data if isinstance(result.raw_data, dict) else {}
+                legs = raw_data.get("legs")
+                normalized_legs = legs if isinstance(legs, list) else []
+                outbound_leg = normalized_legs[0] if len(normalized_legs) > 0 and isinstance(normalized_legs[0], dict) else {}
+                inbound_leg = normalized_legs[1] if len(normalized_legs) > 1 and isinstance(normalized_legs[1], dict) else {}
+                preview.append(
+                    {
+                        "price": result.price,
+                        "airline": result.airline,
+                        "stops": result.stops,
+                        "duration_minutes": result.duration_minutes,
+                        "price_text": _clean_text(raw_data.get("price_text")),
+                        "outbound_time": _clean_text(outbound_leg.get("time_text")),
+                        "outbound_route": _clean_text(outbound_leg.get("route_text")),
+                        "return_time": _clean_text(inbound_leg.get("time_text")),
+                        "return_route": _clean_text(inbound_leg.get("route_text")),
+                        "deep_link": result.deep_link,
+                    }
+                )
+            return preview
+
+        log.info(
+            "scrapingbee_multi_city_debug",
+            outbound=f"{outbound_origin}->{outbound_destination}",
+            inbound=f"{inbound_origin}->{inbound_destination}",
+            outbound_date=outbound_date.isoformat(),
+            inbound_date=inbound_date.isoformat(),
+            max_stops=max_stops,
+            used_deep_pass=used_deep_pass,
+            target_url=target_url,
+            summary_prices=summary_prices,
+            card_count=card_count,
+            captured_count=captured_count,
+            raw_results_count=len(raw_results),
+            eligible_results_count=len(eligible_results),
+            raw_preview=_preview(raw_results),
+            eligible_preview=_preview(eligible_results),
+        )
+
     def _annotate_multi_city_results(
         self,
         results: list[ProviderResult],
@@ -1143,6 +1222,7 @@ class ScrapingBeeProvider:
             js_scenario=self._build_multi_city_results_scenario(deep=False),
             country_code=market_country_code,
         )
+        summary_prices = self._multi_city_summary_prices(rendered)
         results, card_count, captured_count = await self._parse_multi_city_rendered_payload(
             rendered,
             currency=currency,
@@ -1151,6 +1231,7 @@ class ScrapingBeeProvider:
         )
         eligible_results = self._filter_results_by_stops(results, max_stops)
         needs_deep_pass = not results or not eligible_results
+        used_deep_pass = False
         if (
             not needs_deep_pass
             and captured_count >= _FAST_MULTI_CITY_CARD_LIMIT
@@ -1159,19 +1240,38 @@ class ScrapingBeeProvider:
         ):
             needs_deep_pass = True
         if needs_deep_pass:
+            used_deep_pass = True
             rendered = await self._get_rendered_payload(
                 target_url,
                 js_scenario=self._build_multi_city_results_scenario(deep=True),
                 country_code=market_country_code,
             )
-            results, _, _ = await self._parse_multi_city_rendered_payload(
+            summary_prices = self._multi_city_summary_prices(rendered)
+            results, card_count, captured_count = await self._parse_multi_city_rendered_payload(
                 rendered,
                 currency=currency,
                 deep_link=target_url,
                 market_country_code=market_country_code,
             )
+            eligible_results = self._filter_results_by_stops(results, max_stops)
         if not results and card_count == 0 and not self._rendered_payload_has_summary_prices(rendered):
             raise ValueError("KAYAK rendered page did not expose extractable result cards.")
+        self._log_multi_city_debug_snapshot(
+            outbound_origin=outbound_origin,
+            outbound_destination=outbound_destination,
+            outbound_date=outbound_date,
+            inbound_origin=inbound_origin,
+            inbound_destination=inbound_destination,
+            inbound_date=inbound_date,
+            target_url=target_url,
+            summary_prices=summary_prices,
+            card_count=card_count,
+            captured_count=captured_count,
+            raw_results=results,
+            eligible_results=eligible_results,
+            max_stops=max_stops,
+            used_deep_pass=used_deep_pass,
+        )
         results = self._annotate_multi_city_results(
             results,
             outbound_origin=outbound_origin,

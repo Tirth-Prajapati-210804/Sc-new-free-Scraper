@@ -90,3 +90,9 @@ def test_cors_origins_accept_csv() -> None:
     )
 
     assert settings.get_cors_origins() == ["http://localhost:5173", "https://app.example.com"]
+
+
+def test_scrapingbee_multi_city_debug_parses_bool() -> None:
+    settings = _settings(scrapingbee_multi_city_debug="true")
+
+    assert settings.scrapingbee_multi_city_debug is True

@@ -53,6 +53,7 @@ class ProviderRegistry:
                     country_code=settings.scrapingbee_country_code,
                     premium_proxy=settings.scrapingbee_premium_proxy,
                     stealth_proxy=settings.scrapingbee_stealth_proxy,
+                    multi_city_debug=settings.scrapingbee_multi_city_debug,
                     user_agent=settings.scrapingbee_user_agent,
                 )
 

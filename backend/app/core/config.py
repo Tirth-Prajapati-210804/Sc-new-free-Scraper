@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     scrapingbee_user_agent: str = "flight-harvester/1.0"
     scrapingbee_premium_proxy: bool = False
     scrapingbee_stealth_proxy: bool = False
+    scrapingbee_multi_city_debug: bool = False
     kayak_api_key: str = ""
     kayak_base_url: str = "https://sandbox-en-us.kayakaffiliates.com"
     kayak_poll_timeout_seconds: int = 90
@@ -202,6 +203,7 @@ class Settings(BaseSettings):
         "expose_api_docs",
         "scrapingbee_premium_proxy",
         "scrapingbee_stealth_proxy",
+        "scrapingbee_multi_city_debug",
         mode="before",
     )
     @classmethod

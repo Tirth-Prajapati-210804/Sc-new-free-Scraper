@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -442,6 +442,107 @@ async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
     assert results[0].stops == 1
     assert results[0].airline == "Cathay Pacific"
     assert results[0].deep_link == "https://www.kayak.com/book/cheapest-one-stop"
+
+
+@pytest.mark.asyncio
+async def test_multi_city_debug_logs_offer_snapshot() -> None:
+    provider = ScrapingBeeProvider(
+        api_key="test-key",
+        timeout=10,
+        max_retries=1,
+        concurrency_limit=2,
+        min_delay_seconds=0,
+        multi_city_debug=True,
+    )
+    provider._client.get = AsyncMock(
+        return_value=mock_response(
+            {
+                "evaluate_results": [
+                    True,
+                    True,
+                    json.dumps(
+                        {
+                            "card_count": 2,
+                            "captured_count": 2,
+                            "cards": [
+                                {
+                                    "text": (
+                                        "1:25 am - 3:00 pm+1 "
+                                        "YVR Vancouver Intl - DPS Bali Ngurah Rai "
+                                        "1 stop 22h 35m "
+                                        "6:00 pm - 9:50 pm "
+                                        "SIN Changi - YVR Vancouver Intl "
+                                        "1 stop 18h 50m "
+                                        "$991 Economy Light"
+                                    ),
+                                    "price_text": "$991",
+                                    "booking_href": "/book/cheapest-one-stop",
+                                    "cabin": "Economy Light",
+                                    "airline_text": "Cathay Pacific",
+                                    "legs": [
+                                        {
+                                            "text": "YVR Vancouver Intl - DPS Bali Ngurah Rai 1 stop 22h 35m",
+                                            "airline": "Cathay Pacific",
+                                            "time_text": "1:25 am - 3:00 pm+1",
+                                            "route_text": "YVR Vancouver Intl - DPS Bali Ngurah Rai",
+                                            "stops_text": "1 stop",
+                                            "layover_text": "HKG 1h 05m layover, Hong Kong",
+                                            "duration_text": "22h 35m",
+                                        },
+                                        {
+                                            "text": "SIN Changi - YVR Vancouver Intl 1 stop 18h 50m",
+                                            "airline": "Cathay Pacific",
+                                            "time_text": "6:00 pm - 9:50 pm",
+                                            "route_text": "SIN Changi - YVR Vancouver Intl",
+                                            "stops_text": "1 stop",
+                                            "layover_text": "HKG 50m layover, Hong Kong",
+                                            "duration_text": "18h 50m",
+                                        },
+                                    ],
+                                }
+                            ],
+                            "summary": {
+                                "cheapest": "$991 · 20h 42m",
+                                "best": "$1040 · 23h 26m",
+                            },
+                        }
+                    ),
+                ]
+            }
+        )
+    )
+
+    with patch("app.providers.scrapingbee.log.info") as info_log:
+        results = await provider.search_multi_city(
+            [
+                {"departure_id": "YVR", "arrival_id": "DPS", "outbound_date": DEPART},
+                {
+                    "departure_id": "SIN",
+                    "arrival_id": "YVR",
+                    "outbound_date": DEPART + timedelta(days=12),
+                },
+            ],
+            currency="USD",
+            market="us",
+            max_stops=1,
+        )
+
+    debug_calls = [
+        call for call in info_log.call_args_list if call.args and call.args[0] == "scrapingbee_multi_city_debug"
+    ]
+
+    assert len(results) == 1
+    assert len(debug_calls) == 1
+    debug_kwargs = debug_calls[0].kwargs
+    assert debug_kwargs["summary_prices"] == {
+        "cheapest": "$991 · 20h 42m",
+        "best": "$1040 · 23h 26m",
+    }
+    assert debug_kwargs["raw_results_count"] == 1
+    assert debug_kwargs["eligible_results_count"] == 1
+    assert debug_kwargs["raw_preview"][0]["price"] == 991.0
+    assert debug_kwargs["raw_preview"][0]["outbound_time"] == "1:25 am - 3:00 pm+1"
+    assert debug_kwargs["raw_preview"][0]["return_time"] == "6:00 pm - 9:50 pm"
 
 
 def test_is_configured(provider: ScrapingBeeProvider) -> None:
