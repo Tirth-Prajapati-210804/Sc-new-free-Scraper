@@ -43,10 +43,6 @@ export function Sidebar() {
           </div>
 
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-              AntiGravity
-            </p>
-
             <p className="truncate text-[15px] font-bold leading-tight text-slate-900">
               Flight Tracker
             </p>

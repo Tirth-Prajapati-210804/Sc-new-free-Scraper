@@ -567,9 +567,6 @@ function CustomBuilderForm({
                 <FieldHint>Auto-linked back to your outbound origin.</FieldHint>
               </div>
             </div>
-            <div className="rounded-[10px] bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-              For each departure date, the return date shifts by your stay nights and pricing comes back as one total itinerary fare.
-            </div>
           </div>
         </div>
       ) : null}
