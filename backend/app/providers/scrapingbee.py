@@ -721,28 +721,18 @@ class ScrapingBeeProvider:
         deep_link: str,
         market_country_code: str,
     ) -> tuple[list[ProviderResult], int, int]:
-        evaluate_results = rendered.get("evaluate_results")
-        if not isinstance(evaluate_results, list) or not evaluate_results:
-            return [], 0, 0
-
-        cards_payload_raw = evaluate_results[0]
-        if not isinstance(cards_payload_raw, str):
-            return [], 0, 0
-
-        try:
-            cards_payload = await asyncio.to_thread(json.loads, cards_payload_raw)
-        except json.JSONDecodeError:
+        cards_payload = self._extract_rendered_cards_payload(rendered)
+        if cards_payload is None:
             return [], 0, 0
 
         card_count = 0
         captured_count = 0
-        if isinstance(cards_payload, dict):
-            raw_count = cards_payload.get("card_count")
-            if isinstance(raw_count, int) and raw_count >= 0:
-                card_count = raw_count
-            raw_captured_count = cards_payload.get("captured_count")
-            if isinstance(raw_captured_count, int) and raw_captured_count >= 0:
-                captured_count = raw_captured_count
+        raw_count = cards_payload.get("card_count")
+        if isinstance(raw_count, int) and raw_count >= 0:
+            card_count = raw_count
+        raw_captured_count = cards_payload.get("captured_count")
+        if isinstance(raw_captured_count, int) and raw_captured_count >= 0:
+            captured_count = raw_captured_count
 
         results = await asyncio.to_thread(
             self._normalize_multi_city_cards,
@@ -762,18 +752,24 @@ class ScrapingBeeProvider:
             return results
         return [result for result in results if result.stops <= max_stops]
 
-    def _rendered_payload_has_summary_prices(self, rendered: dict) -> bool:
+    def _extract_rendered_cards_payload(self, rendered: dict) -> dict[str, object] | None:
         evaluate_results = rendered.get("evaluate_results")
         if not isinstance(evaluate_results, list) or not evaluate_results:
-            return False
-        payload_raw = evaluate_results[0]
-        if not isinstance(payload_raw, str):
-            return False
-        try:
-            payload = json.loads(payload_raw)
-        except json.JSONDecodeError:
-            return False
-        if not isinstance(payload, dict):
+            return None
+        for item in reversed(evaluate_results):
+            if not isinstance(item, str):
+                continue
+            try:
+                payload = json.loads(item)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and isinstance(payload.get("cards"), list):
+                return payload
+        return None
+
+    def _rendered_payload_has_summary_prices(self, rendered: dict) -> bool:
+        payload = self._extract_rendered_cards_payload(rendered)
+        if payload is None:
             return False
         summary = payload.get("summary")
         if not isinstance(summary, dict):

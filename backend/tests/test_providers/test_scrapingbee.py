@@ -208,6 +208,8 @@ async def test_multi_city_uses_native_kayak_search(provider: ScrapingBeeProvider
         return_value=mock_response(
             {
                 "evaluate_results": [
+                    True,
+                    True,
                     json.dumps(
                         {
                             "cards": [
@@ -312,6 +314,7 @@ async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
             mock_response(
                 {
                     "evaluate_results": [
+                        True,
                         json.dumps(
                             {
                                 "card_count": 200,
@@ -361,6 +364,7 @@ async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
             mock_response(
                 {
                     "evaluate_results": [
+                        True,
                         json.dumps(
                             {
                                 "card_count": 140,
