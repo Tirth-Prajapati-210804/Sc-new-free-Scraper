@@ -59,10 +59,6 @@ class Settings(BaseSettings):
     scrapingbee_user_agent: str = "flight-harvester/1.0"
     scrapingbee_premium_proxy: bool = False
     scrapingbee_stealth_proxy: bool = False
-    travelpayouts_token: str = ""
-    travelpayouts_marker: str = ""
-    travelpayouts_base_url: str = "https://api.travelpayouts.com"
-    travelpayouts_user_agent: str = "flight-harvester/1.0"
     kayak_api_key: str = ""
     kayak_base_url: str = "https://sandbox-en-us.kayakaffiliates.com"
     kayak_poll_timeout_seconds: int = 90
@@ -123,10 +119,6 @@ class Settings(BaseSettings):
         "kayak_base_url",
         "kayak_user_agent",
         "kayak_original_client_ip",
-        "travelpayouts_token",
-        "travelpayouts_marker",
-        "travelpayouts_base_url",
-        "travelpayouts_user_agent",
         mode="before",
     )
     @classmethod
