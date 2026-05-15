@@ -4,7 +4,6 @@ from app.providers.base import FlightProvider, ProviderResult
 from app.providers.kayak import KayakProvider
 from app.providers.registry import ProviderRegistry
 from app.providers.scrapingbee import ScrapingBeePoolProvider, ScrapingBeeProvider
-from app.providers.travelpayouts import TravelpayoutsProvider
 
 __all__ = [
     "FlightProvider",
@@ -13,5 +12,4 @@ __all__ = [
     "ProviderRegistry",
     "ScrapingBeePoolProvider",
     "ScrapingBeeProvider",
-    "TravelpayoutsProvider",
 ]
