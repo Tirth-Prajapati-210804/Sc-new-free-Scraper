@@ -44,7 +44,7 @@ export function Sidebar() {
 
           <div className="min-w-0">
             <p className="truncate text-[15px] font-bold leading-tight text-slate-900">
-              Flight Tracker
+              Flight Scraper
             </p>
           </div>
         </div>

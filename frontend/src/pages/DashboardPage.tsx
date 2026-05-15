@@ -223,8 +223,8 @@ export function DashboardPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Dashboard
               </p>
-              <h1 className="mt-1 text-[2.1rem] font-bold leading-none text-slate-950">
-                Flight Collection Overview
+              <h1 className="mt-1 text-[1.9rem] font-bold leading-none text-slate-950">
+                Flight Scraper Overview
               </h1>
               <p className="mt-3 text-sm text-slate-500">
                 {stats?.last_collection_at
