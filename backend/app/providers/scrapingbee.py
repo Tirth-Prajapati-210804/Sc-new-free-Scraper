@@ -620,11 +620,13 @@ class ScrapingBeeProvider:
             f"{inbound_date.isoformat()}?sort=price_a"
         )
 
-    def _build_multi_city_results_scenario(self) -> dict[str, object]:
+    def _build_multi_city_results_scenario(self, *, deep: bool = False) -> dict[str, object]:
+        card_limit = 120 if deep else 60
         script = (
             "JSON.stringify({card_count:document.querySelectorAll('div[aria-label^=\"Result item\"]').length,"
             "cards:Array.from(document.querySelectorAll('div[aria-label^=\"Result item\"]'))"
-            ".slice(0,120).map(card=>({"
+            f".slice(0,{card_limit})"
+            ".map(card=>({"
             "text:(card.innerText||'').trim(),"
             "price_text:card.querySelector('.nrc6-price-section .e2GB-price-text')?.innerText||'',"
             "booking_href:card.querySelector('.nrc6-price-section a[href*=\"/book/flight\"]')?.getAttribute('href')||'',"
@@ -641,6 +643,18 @@ class ScrapingBeeProvider:
             "})).filter(leg=>leg.text)"
             "}))})"
         )
+        if not deep:
+            return {
+                "strict": False,
+                "instructions": [
+                    {"wait": 8_000},
+                    {"evaluate": "window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.65));"},
+                    {"wait": 2_000},
+                    {"evaluate": "window.scrollTo(0, document.body.scrollHeight);"},
+                    {"wait": 2_500},
+                    {"evaluate": script},
+                ],
+            }
         return {
             "strict": False,
             "instructions": [
@@ -656,6 +670,42 @@ class ScrapingBeeProvider:
                 {"evaluate": script},
             ],
         }
+
+    async def _parse_multi_city_rendered_payload(
+        self,
+        rendered: dict,
+        *,
+        currency: str,
+        deep_link: str,
+        market_country_code: str,
+    ) -> tuple[list[ProviderResult], int]:
+        evaluate_results = rendered.get("evaluate_results")
+        if not isinstance(evaluate_results, list) or not evaluate_results:
+            return [], 0
+
+        cards_payload_raw = evaluate_results[0]
+        if not isinstance(cards_payload_raw, str):
+            return [], 0
+
+        try:
+            cards_payload = await asyncio.to_thread(json.loads, cards_payload_raw)
+        except json.JSONDecodeError:
+            return [], 0
+
+        card_count = 0
+        if isinstance(cards_payload, dict):
+            raw_count = cards_payload.get("card_count")
+            if isinstance(raw_count, int) and raw_count >= 0:
+                card_count = raw_count
+
+        results = await asyncio.to_thread(
+            self._normalize_multi_city_cards,
+            cards_payload,
+            currency=currency,
+            deep_link=deep_link,
+            market_country_code=market_country_code,
+        )
+        return results, card_count
 
     def _annotate_multi_city_results(
         self,
@@ -1018,29 +1068,27 @@ class ScrapingBeeProvider:
 
         rendered = await self._get_rendered_payload(
             target_url,
-            js_scenario=self._build_multi_city_results_scenario(),
+            js_scenario=self._build_multi_city_results_scenario(deep=False),
             country_code=market_country_code,
         )
-        evaluate_results = rendered.get("evaluate_results")
-        if not isinstance(evaluate_results, list) or not evaluate_results:
-            return []
-
-        cards_payload_raw = evaluate_results[0]
-        if not isinstance(cards_payload_raw, str):
-            return []
-
-        try:
-            cards_payload = await asyncio.to_thread(json.loads, cards_payload_raw)
-        except json.JSONDecodeError:
-            return []
-
-        results = await asyncio.to_thread(
-            self._normalize_multi_city_cards,
-            cards_payload,
+        results, card_count = await self._parse_multi_city_rendered_payload(
+            rendered,
             currency=currency,
             deep_link=target_url,
             market_country_code=market_country_code,
         )
+        if not results and card_count < 20:
+            rendered = await self._get_rendered_payload(
+                target_url,
+                js_scenario=self._build_multi_city_results_scenario(deep=True),
+                country_code=market_country_code,
+            )
+            results, _ = await self._parse_multi_city_rendered_payload(
+                rendered,
+                currency=currency,
+                deep_link=target_url,
+                market_country_code=market_country_code,
+            )
         results = self._annotate_multi_city_results(
             results,
             outbound_origin=outbound_origin,
