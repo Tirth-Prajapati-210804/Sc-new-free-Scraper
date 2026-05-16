@@ -98,6 +98,7 @@ _CURRENCY_BY_PRICE_TOKEN = {
 _ALLOWED_MARKETS = {"us", "ca"}
 _FAST_MULTI_CITY_CARD_LIMIT = 30
 _DEEP_MULTI_CITY_CARD_LIMIT = 180
+_SUMMARY_PRICE_ACCEPTABLE_DELTA = 10.0
 
 
 def _clean_text(value: object) -> str:
@@ -794,6 +795,16 @@ class ScrapingBeeProvider:
                 prices[key] = value
         return prices
 
+    def _summary_price_value(
+        self,
+        summary_prices: dict[str, str],
+        key: str,
+    ) -> float | None:
+        value = summary_prices.get(key)
+        if not value:
+            return None
+        return self._parse_price(value)
+
     def _log_multi_city_debug_snapshot(
         self,
         *,
@@ -1232,13 +1243,19 @@ class ScrapingBeeProvider:
         eligible_results = self._filter_results_by_stops(results, max_stops)
         needs_deep_pass = not results or not eligible_results
         used_deep_pass = False
-        if (
-            not needs_deep_pass
-            and captured_count >= _FAST_MULTI_CITY_CARD_LIMIT
-            and card_count > captured_count
-            and len(eligible_results) < 5
-        ):
-            needs_deep_pass = True
+        fast_capture_truncated = (
+            captured_count >= _FAST_MULTI_CITY_CARD_LIMIT and card_count > captured_count
+        )
+        if not needs_deep_pass and fast_capture_truncated:
+            summary_cheapest = self._summary_price_value(summary_prices, "cheapest")
+            cheapest_visible = eligible_results[0].price
+            if summary_cheapest is not None:
+                needs_deep_pass = (
+                    cheapest_visible - summary_cheapest
+                    > _SUMMARY_PRICE_ACCEPTABLE_DELTA
+                )
+            elif len(eligible_results) < 5:
+                needs_deep_pass = True
         if needs_deep_pass:
             used_deep_pass = True
             rendered = await self._get_rendered_payload(
