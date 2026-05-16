@@ -65,6 +65,19 @@ def test_scrapingbee_debug_flag_is_passed_to_provider() -> None:
     assert provider._providers[0]._multi_city_debug is True
 
 
+def test_scrapingbee_provider_uses_minimum_concurrency_of_two() -> None:
+    registry = ProviderRegistry(
+        make_settings(
+            scrapingbee_api_key="bee-key-123",
+            provider_concurrency_limit=1,
+        )
+    )
+
+    provider = registry.get_enabled()[0]
+
+    assert provider._providers[0]._semaphore._value == 2
+
+
 def test_demo_mode_takes_priority_over_scrapingbee_key() -> None:
     registry = ProviderRegistry(make_settings(demo_mode=True, scrapingbee_api_key="bee-key"))
     providers = registry.get_enabled()
