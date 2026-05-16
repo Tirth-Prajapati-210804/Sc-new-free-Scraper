@@ -1,4 +1,3 @@
-# Render backend service definition.
 services:
   - type: web
     name: flight-harvester-backend
