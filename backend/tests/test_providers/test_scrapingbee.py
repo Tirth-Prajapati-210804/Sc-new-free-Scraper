@@ -290,7 +290,7 @@ async def test_multi_city_uses_native_kayak_search(provider: ScrapingBeeProvider
     assert "nrc6-price-section" in params["js_scenario"]
     assert "cheapest" in params["js_scenario"].lower()
     assert "scrollBy" in params["js_scenario"]
-    assert "cardLimit=30" in params["js_scenario"]
+    assert "cardLimit=180" in params["js_scenario"]
     assert results[0].price == 829.0
     assert results[0].airline == "Icelandair / Lufthansa"
     assert results[0].duration_minutes == 1439
@@ -318,108 +318,56 @@ async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
     provider: ScrapingBeeProvider,
 ) -> None:
     provider._client.get = AsyncMock(
-        side_effect=[
-            mock_response(
-                {
-                    "evaluate_results": [
-                        True,
-                        json.dumps(
-                            {
-                                "card_count": 200,
-                                "captured_count": 90,
-                                "cards": [
-                                    {
-                                        "text": (
-                                            "12:30 pm - 10:05 am+2 "
-                                            "YVR Vancouver Intl - DPS Bali Ngurah Rai "
-                                            "2 stops 30h 35m "
-                                            "11:05 am - 2:50 pm "
-                                            "SIN Changi - YVR Vancouver Intl "
-                                            "1 stop 18h 45m "
-                                            "$1128 Economy Value"
-                                        ),
-                                        "price_text": "$1128",
-                                        "booking_href": "/book/best-visible",
-                                        "cabin": "Economy Value",
-                                        "airline_text": "ANA / Garuda Indonesia",
-                                        "legs": [
-                                            {
-                                                "text": "YVR Vancouver Intl - DPS Bali Ngurah Rai 2 stops 30h 35m",
-                                                "airline": "ANA",
-                                                "time_text": "12:30 pm - 10:05 am+2",
-                                                "route_text": "YVR Vancouver Intl - DPS Bali Ngurah Rai",
-                                                "stops_text": "2 stops",
-                                                "layover_text": "NRT 1h 15m layover, Tokyo",
-                                                "duration_text": "30h 35m",
-                                            },
-                                            {
-                                                "text": "SIN Changi - YVR Vancouver Intl 1 stop 18h 45m",
-                                                "airline": "Garuda Indonesia",
-                                                "time_text": "11:05 am - 2:50 pm",
-                                                "route_text": "SIN Changi - YVR Vancouver Intl",
-                                                "stops_text": "1 stop",
-                                                "layover_text": "HND 55m layover, Tokyo",
-                                                "duration_text": "18h 45m",
-                                            },
-                                        ],
-                                    }
-                                ],
-                            }
-                        )
-                    ]
-                }
-            ),
-            mock_response(
-                {
-                    "evaluate_results": [
-                        True,
-                        json.dumps(
-                            {
-                                "card_count": 140,
-                                "captured_count": 140,
-                                "cards": [
-                                    {
-                                        "text": (
-                                            "1:25 am - 3:00 pm+1 "
-                                            "YVR Vancouver Intl - DPS Bali Ngurah Rai "
-                                            "1 stop 22h 35m "
-                                            "6:00 pm - 9:50 pm "
-                                            "SIN Changi - YVR Vancouver Intl "
-                                            "1 stop 18h 50m "
-                                            "$991 Economy Light"
-                                        ),
-                                        "price_text": "$991",
-                                        "booking_href": "/book/cheapest-one-stop",
-                                        "cabin": "Economy Light",
-                                        "airline_text": "Cathay Pacific",
-                                        "legs": [
-                                            {
-                                                "text": "YVR Vancouver Intl - DPS Bali Ngurah Rai 1 stop 22h 35m",
-                                                "airline": "Cathay Pacific",
-                                                "time_text": "1:25 am - 3:00 pm+1",
-                                                "route_text": "YVR Vancouver Intl - DPS Bali Ngurah Rai",
-                                                "stops_text": "1 stop",
-                                                "layover_text": "HKG 1h 05m layover, Hong Kong",
-                                                "duration_text": "22h 35m",
-                                            },
-                                            {
-                                                "text": "SIN Changi - YVR Vancouver Intl 1 stop 18h 50m",
-                                                "airline": "Cathay Pacific",
-                                                "time_text": "6:00 pm - 9:50 pm",
-                                                "route_text": "SIN Changi - YVR Vancouver Intl",
-                                                "stops_text": "1 stop",
-                                                "layover_text": "HKG 50m layover, Hong Kong",
-                                                "duration_text": "18h 50m",
-                                            },
-                                        ],
-                                    }
-                                ],
-                            }
-                        )
-                    ]
-                }
-            ),
-        ]
+        return_value=mock_response(
+            {
+                "evaluate_results": [
+                    True,
+                    json.dumps(
+                        {
+                            "card_count": 140,
+                            "captured_count": 140,
+                            "cards": [
+                                {
+                                    "text": (
+                                        "1:25 am - 3:00 pm+1 "
+                                        "YVR Vancouver Intl - DPS Bali Ngurah Rai "
+                                        "1 stop 22h 35m "
+                                        "6:00 pm - 9:50 pm "
+                                        "SIN Changi - YVR Vancouver Intl "
+                                        "1 stop 18h 50m "
+                                        "$991 Economy Light"
+                                    ),
+                                    "price_text": "$991",
+                                    "booking_href": "/book/cheapest-one-stop",
+                                    "cabin": "Economy Light",
+                                    "airline_text": "Cathay Pacific",
+                                    "legs": [
+                                        {
+                                            "text": "YVR Vancouver Intl - DPS Bali Ngurah Rai 1 stop 22h 35m",
+                                            "airline": "Cathay Pacific",
+                                            "time_text": "1:25 am - 3:00 pm+1",
+                                            "route_text": "YVR Vancouver Intl - DPS Bali Ngurah Rai",
+                                            "stops_text": "1 stop",
+                                            "layover_text": "HKG 1h 05m layover, Hong Kong",
+                                            "duration_text": "22h 35m",
+                                        },
+                                        {
+                                            "text": "SIN Changi - YVR Vancouver Intl 1 stop 18h 50m",
+                                            "airline": "Cathay Pacific",
+                                            "time_text": "6:00 pm - 9:50 pm",
+                                            "route_text": "SIN Changi - YVR Vancouver Intl",
+                                            "stops_text": "1 stop",
+                                            "layover_text": "HKG 50m layover, Hong Kong",
+                                            "duration_text": "18h 50m",
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    )
+                ]
+            }
+        )
     )
 
     results = await provider.search_multi_city(
@@ -436,7 +384,7 @@ async def test_multi_city_retries_with_deeper_capture_for_one_stop_results(
         max_stops=1,
     )
 
-    assert provider._client.get.await_count == 2
+    assert provider._client.get.await_count == 1
     assert len(results) == 1
     assert results[0].price == 991.0
     assert results[0].stops == 1

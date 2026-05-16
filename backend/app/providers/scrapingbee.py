@@ -1219,7 +1219,7 @@ class ScrapingBeeProvider:
 
         rendered = await self._get_rendered_payload(
             target_url,
-            js_scenario=self._build_multi_city_results_scenario(deep=False),
+            js_scenario=self._build_multi_city_results_scenario(deep=True),
             country_code=market_country_code,
         )
         summary_prices = self._multi_city_summary_prices(rendered)
@@ -1230,30 +1230,7 @@ class ScrapingBeeProvider:
             market_country_code=market_country_code,
         )
         eligible_results = self._filter_results_by_stops(results, max_stops)
-        needs_deep_pass = not results or not eligible_results
-        used_deep_pass = False
-        if (
-            not needs_deep_pass
-            and captured_count >= _FAST_MULTI_CITY_CARD_LIMIT
-            and card_count > captured_count
-            and len(eligible_results) < 5
-        ):
-            needs_deep_pass = True
-        if needs_deep_pass:
-            used_deep_pass = True
-            rendered = await self._get_rendered_payload(
-                target_url,
-                js_scenario=self._build_multi_city_results_scenario(deep=True),
-                country_code=market_country_code,
-            )
-            summary_prices = self._multi_city_summary_prices(rendered)
-            results, card_count, captured_count = await self._parse_multi_city_rendered_payload(
-                rendered,
-                currency=currency,
-                deep_link=target_url,
-                market_country_code=market_country_code,
-            )
-            eligible_results = self._filter_results_by_stops(results, max_stops)
+        used_deep_pass = True
         if not results and card_count == 0 and not self._rendered_payload_has_summary_prices(rendered):
             raise ValueError("KAYAK rendered page did not expose extractable result cards.")
         self._log_multi_city_debug_snapshot(
