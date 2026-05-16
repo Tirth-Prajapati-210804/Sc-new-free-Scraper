@@ -628,6 +628,36 @@ class ScrapingBeeProvider:
 
     def _build_multi_city_results_scenario(self, *, deep: bool = False) -> dict[str, object]:
         card_limit = _DEEP_MULTI_CITY_CARD_LIMIT if deep else _FAST_MULTI_CITY_CARD_LIMIT
+        wait_for_search_settle_script = (
+            "(()=>new Promise(resolve=>{"
+            "const done=()=>resolve(true);"
+            "const now=()=>Date.now();"
+            "const progressVisible=()=>Array.from(document.querySelectorAll('div,[role=\"progressbar\"],span'))"
+            ".some(el=>{const style=window.getComputedStyle(el);"
+            "if(style.visibility==='hidden'||style.display==='none')return false;"
+            "const text=(el.innerText||el.getAttribute('aria-label')||'').replace(/\\s+/g,' ').trim().toLowerCase();"
+            "if(!text)return false;"
+            "return text.includes('complete')||text.includes('loading')||text.includes('searching');"
+            "});"
+            "const countText=()=>{"
+            "const body=(document.body?.innerText||'').match(/\\b(\\d+) of (\\d+) flights\\b/i);"
+            "return body?body[0]:'';"
+            "};"
+            "let stableSince=now();"
+            "let lastCount=countText();"
+            "const started=now();"
+            "const tick=()=>{"
+            "const currentCount=countText();"
+            "const moving=progressVisible();"
+            "if(currentCount!==lastCount){lastCount=currentCount;stableSince=now();}"
+            "if(!moving&&currentCount&&now()-stableSince>=3500){done();return;}"
+            "if(!moving&&!currentCount&&now()-started>=8000){done();return;}"
+            "if(now()-started>=30000){done();return;}"
+            "setTimeout(tick,750);"
+            "};"
+            "tick();"
+            "}))()"
+        )
         click_cheapest_script = (
             "(()=>{"
             "const norm=v=>(v||'').replace(/\\s+/g,' ').trim().toLowerCase();"
@@ -684,6 +714,7 @@ class ScrapingBeeProvider:
                 "strict": False,
                 "instructions": [
                     {"wait": 6_500},
+                    {"evaluate": wait_for_search_settle_script},
                     {"evaluate": click_cheapest_script},
                     {"wait": 2_000},
                     {"evaluate": "window.scrollBy(0, 1200);"},
@@ -700,6 +731,7 @@ class ScrapingBeeProvider:
             "strict": False,
             "instructions": [
                 {"wait": 8_000},
+                {"evaluate": wait_for_search_settle_script},
                 {"evaluate": click_cheapest_script},
                 {"wait": 2_000},
                 {"evaluate": "window.scrollBy(0, 1200);"},
@@ -1219,7 +1251,7 @@ class ScrapingBeeProvider:
 
         rendered = await self._get_rendered_payload(
             target_url,
-            js_scenario=self._build_multi_city_results_scenario(deep=True),
+            js_scenario=self._build_multi_city_results_scenario(deep=False),
             country_code=market_country_code,
         )
         summary_prices = self._multi_city_summary_prices(rendered)
@@ -1230,7 +1262,30 @@ class ScrapingBeeProvider:
             market_country_code=market_country_code,
         )
         eligible_results = self._filter_results_by_stops(results, max_stops)
-        used_deep_pass = True
+        needs_deep_pass = not results or not eligible_results
+        used_deep_pass = False
+        if (
+            not needs_deep_pass
+            and captured_count >= _FAST_MULTI_CITY_CARD_LIMIT
+            and card_count > captured_count
+            and len(eligible_results) < 5
+        ):
+            needs_deep_pass = True
+        if needs_deep_pass:
+            used_deep_pass = True
+            rendered = await self._get_rendered_payload(
+                target_url,
+                js_scenario=self._build_multi_city_results_scenario(deep=True),
+                country_code=market_country_code,
+            )
+            summary_prices = self._multi_city_summary_prices(rendered)
+            results, card_count, captured_count = await self._parse_multi_city_rendered_payload(
+                rendered,
+                currency=currency,
+                deep_link=target_url,
+                market_country_code=market_country_code,
+            )
+            eligible_results = self._filter_results_by_stops(results, max_stops)
         if not results and card_count == 0 and not self._rendered_payload_has_summary_prices(rendered):
             raise ValueError("KAYAK rendered page did not expose extractable result cards.")
         self._log_multi_city_debug_snapshot(

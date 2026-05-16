@@ -352,7 +352,7 @@ class FlightScheduler:
                         self._progress["current_origin"] = segment.origin
                         self._progress["current_destination"] = ""
                         self._progress["current_date"] = ""
-                        batch_size = 2 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
+                        batch_size = 1 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
 
                         try:
                             stats = await collector.collect_route_batch(
@@ -681,7 +681,7 @@ class FlightScheduler:
                         self._progress["current_origin"] = segment.origin
                         self._progress["current_destination"] = ""
                         self._progress["current_date"] = ""
-                        batch_size = 2 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
+                        batch_size = 1 if segment.trip_type == "multi_city" else self.settings.scrape_batch_size
 
                         part = await collector.collect_route_batch(
                             origin=segment.origin,

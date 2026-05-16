@@ -251,7 +251,7 @@ async def test_trigger_single_group_collects_multi_city_special_sheets(
     assert captured[0]["nights"] == 7
     assert captured[0]["market"] == "ca"
     assert captured[0]["return_origin"] == "BUD"
-    assert captured[0]["batch_size"] == 2
+    assert captured[0]["batch_size"] == 1
     assert callable(captured[0]["stop_check"])
 
 
