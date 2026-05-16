@@ -41,7 +41,7 @@ services:
       - key: SCRAPINGBEE_COUNTRY_CODE
         value: "us"
       - key: SCRAPINGBEE_PREMIUM_PROXY
-        value: "false"
+        value: "true"
       - key: SCRAPINGBEE_STEALTH_PROXY
         value: "false"
       - key: PROVIDER_TIMEOUT_SECONDS
