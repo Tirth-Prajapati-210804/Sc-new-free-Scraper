@@ -47,7 +47,7 @@ services:
       - key: PROVIDER_TIMEOUT_SECONDS
         value: "60"
       - key: PROVIDER_CONCURRENCY_LIMIT
-        value: "1"
+        value: "2"
       - key: PROVIDER_MIN_DELAY_SECONDS
         value: "0.5"
       - key: KAYAK_API_KEY
